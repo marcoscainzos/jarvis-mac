@@ -24,13 +24,13 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install .
 ```
 
 Para instalar también el reconocimiento de voz local:
 
 ```bash
-python -m pip install -e '.[voice]'
+python -m pip install '.[voice]'
 ```
 
 ## Uso
