@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from jarvis.audio import SpeechError
 from jarvis.assistant import Assistant
 from jarvis.macos import open_application
 from jarvis.macos_speech import MacOSSpeaker
+from jarvis.memory import SQLiteMemory
 from jarvis.speech import LocalWhisperListener
 
 
@@ -19,11 +21,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    assistant = Assistant(open_application)
+    memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
+    assistant = Assistant(open_application, memory)
     listener = LocalWhisperListener() if args.voice else None
     speaker = MacOSSpeaker() if args.voice else None
     mode = "pulsa Intro para hablar" if args.voice else "escribe una orden"
-    print(f"Jarvis v0.2 — {mode} o “salir” para terminar.")
+    print(f"Jarvis v0.3 — {mode} o “salir” para terminar.")
 
     while True:
         try:

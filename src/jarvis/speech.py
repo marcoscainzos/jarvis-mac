@@ -47,21 +47,33 @@ class LocalWhisperListener:
                 "No puedo usar el micrófono. Revisa su permiso en Ajustes del Sistema."
             ) from error
 
-        audio_path = Path(tempfile.gettempdir()) / "jarvis-last-command.wav"
+        temporary = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        audio_path = Path(temporary.name)
+        temporary.close()
         with wave.open(str(audio_path), "wb") as audio_file:
             audio_file.setnchannels(1)
             audio_file.setsampwidth(np.dtype("int16").itemsize)
             audio_file.setframerate(self.sample_rate)
             audio_file.writeframes(recording.tobytes())
 
-        if self._model is None:
-            self._model = WhisperModel(self.model_name, device="auto", compute_type="int8")
-
-        segments, _ = self._model.transcribe(
-            str(audio_path), language=self.language, vad_filter=True
-        )
-        transcript = " ".join(segment.text.strip() for segment in segments).strip()
-        audio_path.unlink(missing_ok=True)
+        try:
+            if self._model is None:
+                self._model = WhisperModel(
+                    self.model_name, device="auto", compute_type="int8"
+                )
+            segments, _ = self._model.transcribe(
+                str(audio_path), language=self.language, vad_filter=True
+            )
+            transcript = " ".join(
+                segment.text.strip() for segment in segments
+            ).strip()
+        except Exception as error:
+            raise SpeechError(
+                "No se pudo cargar o ejecutar el modelo de voz. "
+                "Comprueba la conexión durante la primera descarga."
+            ) from error
+        finally:
+            audio_path.unlink(missing_ok=True)
         if not transcript:
             raise SpeechError("No he entendido la frase. Inténtalo de nuevo.")
         return transcript

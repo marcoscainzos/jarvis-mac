@@ -3,7 +3,7 @@
 Un asistente personal cuyo cerebro está diseñado para funcionar en diferentes
 dispositivos. La versión actual incluye adaptadores de voz y acciones para macOS.
 
-## Funciones de la versión 0.2
+## Funciones de la versión 0.3
 
 - Saludar y responder la hora.
 - Abrir Calculadora, Calendario, Notas, Safari o Terminal.
@@ -11,6 +11,8 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Salir con `salir`, `adiós` o `Ctrl+C`.
 - Escuchar una frase al pulsar Intro y responder con la voz de macOS.
 - Reconocer voz en el dispositivo, sin enviar la grabación a una API externa.
+- Recordar tu nombre entre sesiones mediante SQLite local.
+- Mostrar u olvidar la información guardada cuando se lo pidas.
 
 ## Requisitos
 
@@ -52,7 +54,8 @@ También puedes ejecutarlo sin instalarlo:
 PYTHONPATH=src python3 -m jarvis.cli
 ```
 
-Prueba órdenes como `hola Jarvis`, `qué hora es` o `abre Calculadora`.
+Prueba órdenes como `hola Jarvis`, `me llamo Marcos`, `qué sabes de mí`,
+`olvida mi nombre`, `qué hora es` o `abre Calculadora`.
 
 ## Pruebas
 
@@ -64,15 +67,15 @@ pytest
 
 ## Privacidad
 
-La versión 0.2 no usa una API de voz ni recopila conversaciones. El modelo se
+La versión 0.3 no usa una API de voz ni recopila conversaciones. El modelo se
 descarga una vez y la transcripción se ejecuta localmente. La grabación temporal
 se elimina después de transcribirla. Los futuros secretos
-se guardarán en `.env`, que está excluido de Git. Nunca publiques claves de API,
+se guardarán en `.env`, que está excluido de Git. La memoria vive en
+`~/.jarvis/memory.db`, fuera del repositorio. Nunca publiques claves de API,
 grabaciones o información personal.
 
 ## Próximos hitos
 
-- **v0.3:** memoria local con SQLite.
 - **v0.4:** icono y controles en la barra de menús.
 - **v1.0:** asistente configurable y estable.
 
