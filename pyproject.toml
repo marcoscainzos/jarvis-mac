@@ -4,13 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis-mac"
-version = "0.1.0"
+version = "0.2.0"
 description = "Asistente personal local para macOS"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Marcos" }]
 dependencies = []
+
+[project.optional-dependencies]
+voice = [
+    "faster-whisper>=1.1,<2",
+    "numpy>=1.26,<3",
+    "sounddevice>=0.5,<1",
+]
 
 [project.scripts]
 jarvis = "jarvis.cli:main"
@@ -21,4 +28,3 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-
