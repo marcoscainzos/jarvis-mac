@@ -26,6 +26,7 @@ mac-app = [
 [project.scripts]
 jarvis = "jarvis.cli:main"
 jarvis-app = "jarvis.menu_bar:main"
+jarvis-install-app = "jarvis.macos_installer:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

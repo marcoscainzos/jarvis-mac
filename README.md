@@ -60,6 +60,13 @@ Para iniciar la aplicación de barra superior:
 jarvis-app
 ```
 
+Para instalar `Jarvis.app` y poder abrirlo desde Finder sin mantener Terminal:
+
+```bash
+jarvis-install-app
+open ~/Applications/Jarvis.app
+```
+
 Pulsa su icono `◉` junto al reloj y elige **Escuchar**, o utiliza
 `Control + Opción + Espacio`. macOS puede pedir permisos de Micrófono,
 Accesibilidad y Notificaciones. El atajo global necesita Accesibilidad; el botón
