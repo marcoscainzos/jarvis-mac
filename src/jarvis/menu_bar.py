@@ -47,6 +47,7 @@ def main() -> None:
     rumps, keyboard = _load_desktop_dependencies()
     from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
     from PyObjCTools import AppHelper
+    from jarvis.overlay import JarvisOverlay
 
     NSApplication.sharedApplication().setActivationPolicy_(
         NSApplicationActivationPolicyAccessory
@@ -67,6 +68,9 @@ def main() -> None:
                 MacOSSpeaker(),
             )
             self.status = rumps.MenuItem("Estado: listo")
+            self.overlay = JarvisOverlay()
+            self.overlay.hide()
+            self.visual_session = False
             self.listen_item = rumps.MenuItem(
                 "Escuchar (habla tras el sonido)  ⌃⌥Espacio",
                 callback=self.start_listening,
@@ -106,6 +110,7 @@ def main() -> None:
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
                 return
+            self.visual_session = _sender == "claps"
             self.clap_detector.pause()
             AppHelper.callAfter(self._begin_visual_listening)
             threading.Thread(target=self._listen_worker, daemon=True).start()
@@ -121,25 +126,20 @@ def main() -> None:
                     f"Tú: {command}\n\nJarvis: {reply.message}",
                 )
             except SpeechError as error:
-                AppHelper.callAfter(self._show_error, str(error))
+                self.service.speaker.speak(str(error))
             except Exception as error:
-                AppHelper.callAfter(
-                    self._show_error, f"Error inesperado: {error}"
-                )
+                self.service.speaker.speak(f"Ha ocurrido un error: {error}")
             finally:
                 AppHelper.callAfter(self._finish_listening)
                 self.listening_lock.release()
 
         def _finish_listening(self) -> None:
             self._apply_status("ready")
+            self.visual_session = False
             self.clap_detector.resume()
 
         def _show_reply(self, message: str) -> None:
             rumps.notification("Jarvis", "Orden completada", message)
-
-        def _show_error(self, message: str) -> None:
-            self._apply_status("ready")
-            rumps.alert("Jarvis", message)
 
         def _begin_visual_listening(self) -> None:
             from AppKit import NSSound
@@ -156,6 +156,10 @@ def main() -> None:
             }
             self.status.title = labels[state]
             self.title = "◉" if state == "ready" else "●"
+            if state == "ready":
+                self.overlay.hide()
+            elif self.visual_session:
+                self.overlay.show(state)
 
         def toggle_claps(self, _sender: Any) -> None:
             if self.clap_detector.stream is None:
@@ -182,6 +186,7 @@ def main() -> None:
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
             self.clap_detector.stop()
+            self.overlay.hide()
             rumps.quit_application()
 
     JarvisMenuBar().run()
