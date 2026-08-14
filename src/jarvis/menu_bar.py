@@ -72,6 +72,7 @@ def main() -> None:
             self.overlay = JarvisOverlay()
             self.overlay.hide()
             self.visual_session = False
+            self._restart_claps_after_listening = False
             self.listen_item = rumps.MenuItem(
                 "Escuchar (habla tras el sonido)  ⌃⌥Espacio",
                 callback=self.start_listening,
@@ -112,7 +113,11 @@ def main() -> None:
             if not self.listening_lock.acquire(blocking=False):
                 return
             self.visual_session = _sender == "claps"
-            self.clap_detector.pause()
+            self._restart_claps_after_listening = (
+                self.clap_detector.stream is not None
+            )
+            if self._restart_claps_after_listening:
+                self.clap_detector.stop()
             AppHelper.callAfter(self._begin_visual_listening)
             threading.Thread(target=self._listen_worker, daemon=True).start()
 
@@ -151,7 +156,13 @@ def main() -> None:
         def _finish_listening(self) -> None:
             self._apply_status("ready")
             self.visual_session = False
-            self.clap_detector.resume(cooldown=1.5)
+            if self._restart_claps_after_listening:
+                try:
+                    self.clap_detector.start()
+                    self.clap_detector.resume(cooldown=1.5)
+                except Exception:
+                    self.clap_item.title = "Dos palmadas: no disponibles"
+            self._restart_claps_after_listening = False
 
         def _show_reply(self, message: str) -> None:
             rumps.notification("Jarvis", "Orden completada", message)
