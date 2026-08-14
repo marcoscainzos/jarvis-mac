@@ -94,13 +94,14 @@ def test_natural_music_search_and_web_search() -> None:
     tools = FakeTools()
     assistant = Assistant(lambda _: False, computer_tools=tools)
 
-    assistant.handle("pon música de Queen")
+    music_reply = assistant.handle("pon música de Queen")
     assistant.handle("búscame restaurantes italianos en Vigo")
 
     assert tools.calls == [
         ("play_music", "queen"),
         ("search_web", "restaurantes italianos en vigo"),
     ]
+    assert "YouTube" in music_reply.message
 
 
 def test_creates_reminders_in_minutes_and_days() -> None:

@@ -128,8 +128,8 @@ class Assistant:
             query = requested_music.group(1).strip()
             if query not in {"musica", "algo de musica"}:
                 if self._computer_tools.play_music(query):
-                    return Reply(f"Reproduciendo {query}.")
-                return Reply(f"No he encontrado {query} en tu biblioteca de Música.")
+                    return Reply(f"He abierto {query} en YouTube.")
+                return Reply(f"No he podido buscar {query} en YouTube.")
 
         web_search = re.match(
             r"(?:busca|buscame|investiga|consulta)(?: en internet| en google)?\s+(.+)",

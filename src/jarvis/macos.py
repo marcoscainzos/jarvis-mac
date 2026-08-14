@@ -49,22 +49,22 @@ class MacOSComputerTools:
         return script is not None and self._osascript(script)
 
     def play_music(self, query: str) -> bool:
-        """Busca una canción o artista en Apple Music y reproduce el resultado."""
+        """Busca una canción o artista en YouTube usando el navegador."""
         safe_query = query.strip()[:200]
         if not safe_query:
             return self.control_music("play_pause")
-        script = """
-on run argv
-    tell application "Music"
-        activate
-        set matches to search playlist "Library" for (item 1 of argv)
-        if (count of matches) is 0 then return "not-found"
-        play item 1 of matches
-        return "ok"
-    end tell
-end run
-"""
-        return self._osascript(script, safe_query)
+        result = subprocess.run(
+            [
+                "open",
+                "-a",
+                "Safari",
+                f"https://www.youtube.com/results?search_query={quote_plus(safe_query)}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0
 
     def search_web(self, query: str) -> bool:
         safe_query = query.strip()[:500]
