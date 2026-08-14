@@ -28,6 +28,13 @@ def _load_desktop_dependencies() -> tuple[Any, Any]:
 
 def main() -> None:
     rumps, keyboard = _load_desktop_dependencies()
+    from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+
+    from jarvis.overlay import JarvisOverlay
+
+    NSApplication.sharedApplication().setActivationPolicy_(
+        NSApplicationActivationPolicyAccessory
+    )
 
     class JarvisMenuBar(rumps.App):
         def __init__(self) -> None:
@@ -39,6 +46,7 @@ def main() -> None:
                 MacOSSpeaker(),
             )
             self.status = rumps.MenuItem("Estado: listo")
+            self.overlay = JarvisOverlay()
             self.listen_item = rumps.MenuItem(
                 "Escuchar  ⌃⌥Espacio", callback=self.start_listening
             )
@@ -60,19 +68,23 @@ def main() -> None:
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
                 return
-            self.events.put(("status", "Estado: escuchando…"))
+            self.events.put(("status", "listening"))
             threading.Thread(target=self._listen_worker, daemon=True).start()
 
         def _listen_worker(self) -> None:
             try:
-                command, reply = self.service.listen_and_reply()
+                command = self.service.listener.listen()
+                self.events.put(("status", "processing"))
+                reply = self.service.assistant.handle(command)
+                self.events.put(("status", "speaking"))
+                self.service.speaker.speak(reply.message)
                 self.events.put(("reply", f"Tú: {command}\n\nJarvis: {reply.message}"))
             except SpeechError as error:
                 self.events.put(("error", str(error)))
             except Exception as error:
                 self.events.put(("error", f"Error inesperado: {error}"))
             finally:
-                self.events.put(("status", "Estado: listo"))
+                self.events.put(("status", "ready"))
                 self.listening_lock.release()
 
         def process_events(self, _timer: Any) -> None:
@@ -82,8 +94,18 @@ def main() -> None:
                 except queue.Empty:
                     break
                 if event == "status":
-                    self.status.title = message
-                    self.title = "●" if "escuchando" in message else "◉"
+                    labels = {
+                        "ready": "Estado: listo",
+                        "listening": "Estado: escuchando…",
+                        "processing": "Estado: procesando…",
+                        "speaking": "Estado: hablando…",
+                    }
+                    self.status.title = labels[message]
+                    self.title = "◉" if message == "ready" else "●"
+                    if message == "ready":
+                        self.overlay.hide()
+                    else:
+                        self.overlay.show(message)
                 elif event == "reply":
                     rumps.notification("Jarvis", "Orden completada", message)
                 elif event == "error":
@@ -92,6 +114,7 @@ def main() -> None:
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
             self.timer.stop()
+            self.overlay.hide()
             rumps.quit_application()
 
     JarvisMenuBar().run()

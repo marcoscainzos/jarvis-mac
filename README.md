@@ -16,6 +16,8 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Vivir en la barra superior de macOS sin mantener Terminal abierta.
 - Escuchar desde el menú o con el atajo global `Control + Opción + Espacio`.
 - Mostrar estados y respuestas mediante notificaciones de macOS.
+- Mostrar un núcleo azul flotante a la izquierda mientras escucha, procesa y habla.
+- Ejecutarse como aplicación accesoria sin mostrar Python en el Dock.
 
 ## Requisitos
 

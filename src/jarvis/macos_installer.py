@@ -25,6 +25,7 @@ def install_app(applications_dir: Path | None = None) -> Path:
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": "0.4.0",
         "LSUIElement": True,
+        "NSHighResolutionCapable": True,
         "NSMicrophoneUsageDescription": "Jarvis necesita oír tus órdenes.",
     }
     with (contents / "Info.plist").open("wb") as handle:
