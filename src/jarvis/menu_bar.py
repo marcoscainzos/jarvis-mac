@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import queue
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,7 @@ def _load_desktop_dependencies() -> tuple[Any, Any]:
 def main() -> None:
     rumps, keyboard = _load_desktop_dependencies()
     from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+    from PyObjCTools import AppHelper
 
     from jarvis.overlay import JarvisOverlay
 
@@ -39,13 +40,14 @@ def main() -> None:
     class JarvisMenuBar(rumps.App):
         def __init__(self) -> None:
             super().__init__("J", title="◉", quit_button=None)
-            self.events: queue.Queue[tuple[str, str]] = queue.Queue()
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             self.service = JarvisService(
                 Assistant(open_application, memory),
                 LocalWhisperListener(
                     duration=4,
-                    on_recorded=lambda: self.events.put(("status", "processing")),
+                    on_recorded=lambda: AppHelper.callAfter(
+                        self._apply_status, "processing"
+                    ),
                 ),
                 MacOSSpeaker(),
             )
@@ -62,8 +64,6 @@ def main() -> None:
                 rumps.MenuItem("Salir de Jarvis", callback=self.quit_app),
             ]
             self.listening_lock = threading.Lock()
-            self.timer = rumps.Timer(self.process_events, 0.2)
-            self.timer.start()
             self.hotkeys = keyboard.GlobalHotKeys(
                 {"<ctrl>+<alt>+<space>": self.start_listening}
             )
@@ -73,47 +73,36 @@ def main() -> None:
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
                 return
-            if _sender is None:
-                self.events.put(("start", "listening"))
-            else:
-                self._begin_visual_listening()
-            delay = threading.Timer(0.6, self._start_listening_worker)
-            delay.daemon = True
-            delay.start()
-
-        def _start_listening_worker(self) -> None:
+            AppHelper.callAfter(self._begin_visual_listening)
             threading.Thread(target=self._listen_worker, daemon=True).start()
 
         def _listen_worker(self) -> None:
             try:
+                time.sleep(0.6)
                 command = self.service.listener.listen()
                 reply = self.service.assistant.handle(command)
-                self.events.put(("status", "speaking"))
+                AppHelper.callAfter(self._apply_status, "speaking")
                 self.service.speaker.speak(reply.message)
-                self.events.put(("reply", f"Tú: {command}\n\nJarvis: {reply.message}"))
+                AppHelper.callAfter(
+                    self._show_reply,
+                    f"Tú: {command}\n\nJarvis: {reply.message}",
+                )
             except SpeechError as error:
-                self.events.put(("error", str(error)))
+                AppHelper.callAfter(self._show_error, str(error))
             except Exception as error:
-                self.events.put(("error", f"Error inesperado: {error}"))
+                AppHelper.callAfter(
+                    self._show_error, f"Error inesperado: {error}"
+                )
             finally:
-                self.events.put(("status", "ready"))
+                AppHelper.callAfter(self._apply_status, "ready")
                 self.listening_lock.release()
 
-        def process_events(self, _timer: Any) -> None:
-            while True:
-                try:
-                    event, message = self.events.get_nowait()
-                except queue.Empty:
-                    break
-                if event == "status":
-                    self._apply_status(message)
-                elif event == "start":
-                    self._begin_visual_listening()
-                elif event == "reply":
-                    rumps.notification("Jarvis", "Orden completada", message)
-                elif event == "error":
-                    self._apply_status("ready")
-                    rumps.alert("Jarvis", message)
+        def _show_reply(self, message: str) -> None:
+            rumps.notification("Jarvis", "Orden completada", message)
+
+        def _show_error(self, message: str) -> None:
+            self._apply_status("ready")
+            rumps.alert("Jarvis", message)
 
         def _begin_visual_listening(self) -> None:
             from AppKit import NSSound
@@ -134,7 +123,6 @@ def main() -> None:
 
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
-            self.timer.stop()
             self.overlay.hide()
             rumps.quit_application()
 
