@@ -38,6 +38,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Dormirse silenciosamente tras diez segundos sin una nueva frase.
 - Empezar a captar la voz inmediatamente al aparecer la nube, sin un pitido que interfiera.
 - Liberar el micrófono del detector de palmadas antes de iniciar el reconocimiento de voz.
+- Controlar Música y volumen, crear recordatorios por horas y eventos de Calendario.
 
 ## Requisitos
 

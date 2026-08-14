@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 from typing import Callable
 import unicodedata
 
 from jarvis.memory import Memory, VolatileMemory
 from jarvis.local_ai import ConversationalAI
+from jarvis.computer_tools import ComputerTools
 
 
 @dataclass(frozen=True)
@@ -24,10 +25,12 @@ class Assistant:
         open_app: Callable[[str], bool],
         memory: Memory | None = None,
         conversational_ai: ConversationalAI | None = None,
+        computer_tools: ComputerTools | None = None,
     ) -> None:
         self._open_app = open_app
         self._memory = memory or VolatileMemory()
         self._conversational_ai = conversational_ai
+        self._computer_tools = computer_tools
 
     def handle(self, command: str) -> Reply:
         normalized = self._normalize(command)
@@ -73,6 +76,9 @@ class Assistant:
             )
         if normalized in {"que hora es", "hora"}:
             return Reply(f"Son las {datetime.now():%H:%M}.")
+        action_reply = self._handle_computer_action(command, normalized)
+        if action_reply is not None:
+            return action_reply
         if normalized.startswith("abre "):
             app_name = command.strip()[5:].strip()
             if not app_name:
@@ -89,6 +95,71 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_computer_action(
+        self, command: str, normalized: str
+    ) -> Reply | None:
+        if self._computer_tools is None:
+            return None
+
+        music_actions = {
+            "pon musica": ("play_pause", "Reproduciendo música."),
+            "reproduce musica": ("play_pause", "Reproduciendo música."),
+            "pausa la musica": ("play_pause", "Música pausada."),
+            "pausa musica": ("play_pause", "Música pausada."),
+            "siguiente cancion": ("next", "Pasando a la siguiente canción."),
+            "cancion siguiente": ("next", "Pasando a la siguiente canción."),
+            "cancion anterior": ("previous", "Volviendo a la canción anterior."),
+        }
+        if normalized in music_actions:
+            action, success = music_actions[normalized]
+            if self._computer_tools.control_music(action):
+                return Reply(success)
+            return Reply("No he podido controlar Música.")
+
+        volume = re.fullmatch(r"(?:pon )?(?:el )?volumen(?: al)? (\d{1,3})", normalized)
+        if volume:
+            level = max(0, min(100, int(volume.group(1))))
+            if self._computer_tools.set_volume(level):
+                return Reply(f"Volumen al {level} por ciento.")
+            return Reply("No he podido cambiar el volumen.")
+
+        reminder = re.search(
+            r"recu[eé]rdame\s+(.+?)\s+(?:dentro de|en)\s+(\d+)\s+horas?",
+            command,
+            flags=re.IGNORECASE,
+        )
+        if reminder:
+            title = reminder.group(1).strip(" .,!¿?¡")
+            hours = min(24 * 365, int(reminder.group(2)))
+            due = datetime.now() + timedelta(hours=hours)
+            if self._computer_tools.create_reminder(title, due):
+                return Reply(f"Recordatorio creado para dentro de {hours} horas.")
+            return Reply("No he podido crear el recordatorio.")
+
+        event = re.search(
+            r"(?:crea|a[nñ]ade)(?: un)? evento(?: en el calendario)?\s+(.+?)\s+"
+            r"(hoy|ma[nñ]ana)\s+a las\s+(\d{1,2})(?::(\d{2}))?",
+            command,
+            flags=re.IGNORECASE,
+        )
+        if event:
+            title = event.group(1).strip(" .,!¿?¡")
+            start = datetime.now()
+            if self._normalize(event.group(2)) == "manana":
+                start += timedelta(days=1)
+            start = start.replace(
+                hour=min(23, int(event.group(3))),
+                minute=min(59, int(event.group(4) or 0)),
+                second=0,
+                microsecond=0,
+            )
+            if self._computer_tools.create_calendar_event(
+                title, start, start + timedelta(hours=1)
+            ):
+                return Reply(f"Evento {title} añadido al calendario.")
+            return Reply("No he podido crear el evento en el calendario.")
+        return None
 
     @staticmethod
     def _extract_name(command: str, normalized: str) -> str | None:

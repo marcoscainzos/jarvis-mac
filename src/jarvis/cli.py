@@ -5,7 +5,7 @@ from pathlib import Path
 
 from jarvis.audio import SpeechError
 from jarvis.assistant import Assistant
-from jarvis.macos import open_application
+from jarvis.macos import MacOSComputerTools, open_application
 from jarvis.local_ai import OllamaAI
 from jarvis.macos_speech import MacOSSpeaker
 from jarvis.memory import SQLiteMemory
@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
-    assistant = Assistant(open_application, memory, OllamaAI())
+    assistant = Assistant(open_application, memory, OllamaAI(), MacOSComputerTools())
     listener = LocalWhisperListener() if args.voice else None
     speaker = MacOSSpeaker() if args.voice else None
     mode = "pulsa Intro para hablar" if args.voice else "escribe una orden"

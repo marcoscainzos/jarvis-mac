@@ -2,6 +2,27 @@ from jarvis.assistant import Assistant
 from jarvis.memory import VolatileMemory
 
 
+class FakeTools:
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def control_music(self, action: str) -> bool:
+        self.calls.append(("music", action))
+        return True
+
+    def set_volume(self, level: int) -> bool:
+        self.calls.append(("volume", level))
+        return True
+
+    def create_reminder(self, title, due) -> bool:
+        self.calls.append(("reminder", title, due))
+        return True
+
+    def create_calendar_event(self, title, start, end) -> bool:
+        self.calls.append(("event", title, start, end))
+        return True
+
+
 class FakeAI:
     def reply(self, message: str) -> str:
         return f"Respuesta razonada a: {message}"
@@ -38,6 +59,27 @@ def test_unknown_command_uses_conversational_ai() -> None:
     reply = assistant.handle("Explícame por qué el cielo es azul")
 
     assert reply.message.startswith("Respuesta razonada")
+
+
+def test_controls_music_and_volume() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    assistant.handle("pon música")
+    assistant.handle("pon el volumen al 35")
+
+    assert tools.calls == [("music", "play_pause"), ("volume", 35)]
+
+
+def test_creates_reminder_and_calendar_event() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    assistant.handle("recuérdame estudiar dentro de 2 horas")
+    assistant.handle("crea un evento entrenamiento mañana a las 18:30")
+
+    assert tools.calls[0][0:2] == ("reminder", "estudiar")
+    assert tools.calls[1][0:2] == ("event", "entrenamiento")
 
 
 def test_exit_command_ends_session() -> None:
