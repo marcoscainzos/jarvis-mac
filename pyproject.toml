@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis-mac"
-version = "0.3.0"
+version = "0.4.0"
 description = "Asistente personal local para macOS"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,9 +18,14 @@ voice = [
     "numpy>=1.26,<3",
     "sounddevice>=0.5,<1",
 ]
+mac-app = [
+    "pynput>=1.7,<2",
+    "rumps>=0.4,<1",
+]
 
 [project.scripts]
 jarvis = "jarvis.cli:main"
+jarvis-app = "jarvis.menu_bar:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

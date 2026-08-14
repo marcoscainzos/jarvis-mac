@@ -3,7 +3,7 @@
 Un asistente personal cuyo cerebro está diseñado para funcionar en diferentes
 dispositivos. La versión actual incluye adaptadores de voz y acciones para macOS.
 
-## Funciones de la versión 0.3
+## Funciones de la versión 0.4
 
 - Saludar y responder la hora.
 - Abrir Calculadora, Calendario, Notas, Safari o Terminal.
@@ -13,6 +13,9 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Reconocer voz en el dispositivo, sin enviar la grabación a una API externa.
 - Recordar tu nombre entre sesiones mediante SQLite local.
 - Mostrar u olvidar la información guardada cuando se lo pidas.
+- Vivir en la barra superior de macOS sin mantener Terminal abierta.
+- Escuchar desde el menú o con el atajo global `Control + Opción + Espacio`.
+- Mostrar estados y respuestas mediante notificaciones de macOS.
 
 ## Requisitos
 
@@ -33,6 +36,12 @@ Para instalar también el reconocimiento de voz local:
 python -m pip install '.[voice]'
 ```
 
+Para instalar la aplicación de barra superior y la voz:
+
+```bash
+python -m pip install '.[voice,mac-app]'
+```
+
 ## Uso
 
 ```bash
@@ -44,6 +53,17 @@ Para activar el modo de voz:
 ```bash
 jarvis --voice
 ```
+
+Para iniciar la aplicación de barra superior:
+
+```bash
+jarvis-app
+```
+
+Pulsa su icono `◉` junto al reloj y elige **Escuchar**, o utiliza
+`Control + Opción + Espacio`. macOS puede pedir permisos de Micrófono,
+Accesibilidad y Notificaciones. El atajo global necesita Accesibilidad; el botón
+del menú seguirá funcionando aunque ese permiso todavía no esté concedido.
 
 La primera vez se descargará el modelo de Whisper y macOS solicitará permiso
 para usar el micrófono. Después, la transcripción se realiza en el dispositivo.
@@ -79,7 +99,7 @@ grabaciones o información personal.
 
 ## Próximos hitos
 
-- **v0.4:** icono y controles en la barra de menús.
+- **v0.5:** notas, recordatorios y temporizadores.
 - **v1.0:** asistente configurable y estable.
 
 ## Otros dispositivos
