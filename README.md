@@ -73,6 +73,18 @@ jarvis-install-app
 open ~/Applications/Jarvis.app
 ```
 
+## Aplicación macOS autónoma
+
+Para crear un paquete con identidad propia y permisos independientes de Python:
+
+```bash
+python -m pip install '.[voice,mac-app,build]'
+pyinstaller --clean --noconfirm Jarvis.spec
+```
+
+El resultado queda en `dist/Jarvis.app`, construido para Apple Silicon. Esta es
+la variante recomendada para instalar y conceder el permiso de micrófono.
+
 Pulsa su icono `◉` junto al reloj y elige **Escuchar**, o utiliza
 `Control + Opción + Espacio`. macOS puede pedir permisos de Micrófono,
 Accesibilidad y Notificaciones. El atajo global necesita Accesibilidad; el botón
