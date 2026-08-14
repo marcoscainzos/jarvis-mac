@@ -39,10 +39,14 @@ def main() -> None:
     class JarvisMenuBar(rumps.App):
         def __init__(self) -> None:
             super().__init__("J", title="◉", quit_button=None)
+            self.events: queue.Queue[tuple[str, str]] = queue.Queue()
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             self.service = JarvisService(
                 Assistant(open_application, memory),
-                LocalWhisperListener(duration=7),
+                LocalWhisperListener(
+                    duration=4,
+                    on_recorded=lambda: self.events.put(("status", "processing")),
+                ),
                 MacOSSpeaker(),
             )
             self.status = rumps.MenuItem("Estado: listo")
@@ -57,7 +61,6 @@ def main() -> None:
                 self.listen_item,
                 rumps.MenuItem("Salir de Jarvis", callback=self.quit_app),
             ]
-            self.events: queue.Queue[tuple[str, str]] = queue.Queue()
             self.listening_lock = threading.Lock()
             self.timer = rumps.Timer(self.process_events, 0.2)
             self.timer.start()
@@ -84,7 +87,6 @@ def main() -> None:
         def _listen_worker(self) -> None:
             try:
                 command = self.service.listener.listen()
-                self.events.put(("status", "processing"))
                 reply = self.service.assistant.handle(command)
                 self.events.put(("status", "speaking"))
                 self.service.speaker.speak(reply.message)

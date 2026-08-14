@@ -7,7 +7,7 @@ import traceback
 import wave
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from jarvis.audio import SpeechError
 
@@ -21,11 +21,13 @@ class LocalWhisperListener:
         language: str = "es",
         duration: int = 6,
         sample_rate: int = 16_000,
+        on_recorded: Callable[[], None] | None = None,
     ) -> None:
         self.model_name = model_name
         self.language = language
         self.duration = duration
         self.sample_rate = sample_rate
+        self.on_recorded = on_recorded
         self._model: Any = None
 
     def listen(self) -> str:
@@ -43,6 +45,17 @@ class LocalWhisperListener:
             raise SpeechError(
                 "No puedo usar el micrófono. Revisa su permiso en Ajustes del Sistema."
             ) from error
+
+        if self.on_recorded:
+            self.on_recorded()
+
+        peak = int(np.max(np.abs(recording.astype("int32"))))
+        if peak < 80:
+            raise SpeechError(
+                "No está entrando sonido por el micrófono. Activa el permiso para "
+                "Python o Jarvis en Ajustes del Sistema > Privacidad y seguridad > "
+                "Micrófono, y comprueba que el micrófono correcto esté seleccionado."
+            )
 
         temporary = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         audio_path = Path(temporary.name)
