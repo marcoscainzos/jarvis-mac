@@ -61,7 +61,7 @@ def main() -> None:
             self.service = JarvisService(
                 Assistant(open_application, memory, OllamaAI()),
                 LocalWhisperListener(
-                    duration=5,
+                    duration=8,
                     on_recorded=lambda: AppHelper.callAfter(
                         self._recording_finished
                     ),

@@ -5,6 +5,7 @@ import sys
 import tempfile
 import traceback
 import wave
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -85,15 +86,16 @@ class LocalWhisperListener:
         """Termina poco después de que el usuario deja de hablar."""
         block_seconds = 0.10
         block_frames = int(self.sample_rate * block_seconds)
-        max_blocks = max(1, int(min(self.duration, 5.0) / block_seconds))
-        min_blocks = int(0.9 / block_seconds)
+        max_speech_blocks = max(1, int(self.duration / block_seconds))
         silence_blocks_needed = int(0.7 / block_seconds)
         calibration_blocks = 3
         calibration_levels: list[float] = []
         noise_floor = 80.0
         speech_started = False
         silent_blocks = 0
+        pre_roll: deque[Any] = deque(maxlen=5)
         chunks: list[Any] = []
+        speech_blocks = 0
 
         with sd.InputStream(
                 samplerate=self.sample_rate,
@@ -101,32 +103,41 @@ class LocalWhisperListener:
                 dtype="int16",
                 blocksize=block_frames,
             ) as stream:
-            for index in range(max_blocks):
+            index = 0
+            while True:
                 block, _overflowed = stream.read(block_frames)
-                chunks.append(block.copy())
                 samples = block.astype("float32")
                 rms = float(np.sqrt(np.mean(samples * samples)))
                 if index < calibration_blocks:
                     calibration_levels.append(rms)
+                    pre_roll.append(block.copy())
                     if index == calibration_blocks - 1:
                         noise_floor = float(np.median(calibration_levels))
+                    index += 1
                     continue
 
                 threshold = noise_floor + max(140.0, noise_floor * 1.20)
                 if rms >= threshold:
+                    if not speech_started:
+                        chunks.extend(pre_roll)
                     speech_started = True
+                    chunks.append(block.copy())
+                    speech_blocks += 1
                     silent_blocks = 0
                 else:
                     if not speech_started:
                         noise_floor = noise_floor * 0.80 + rms * 0.20
+                        pre_roll.append(block.copy())
                     else:
+                        chunks.append(block.copy())
+                        speech_blocks += 1
                         silent_blocks += 1
-                if (
-                    speech_started
-                    and index >= min_blocks
-                    and silent_blocks >= silence_blocks_needed
+                if speech_started and (
+                    silent_blocks >= silence_blocks_needed
+                    or speech_blocks >= max_speech_blocks
                 ):
                     break
+                index += 1
         return np.concatenate(chunks, axis=0)
 
     @staticmethod
