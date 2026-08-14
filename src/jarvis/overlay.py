@@ -28,6 +28,7 @@ class JarvisOverlay:
         self.panel.setOpaque_(False)
         self.panel.setBackgroundColor_(NSColor.clearColor())
         self.panel.setHasShadow_(False)
+        self.panel.setHidesOnDeactivate_(False)
         self.panel.setIgnoresMouseEvents_(True)
         self.panel.setLevel_(NSFloatingWindowLevel)
         self.panel.setCollectionBehavior_(
@@ -51,7 +52,7 @@ class JarvisOverlay:
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.35, 0.92, 1.0, 0.95)
         )
         container.addSubview_(self.label)
-        self.hide()
+        self.show("ready")
 
     def _build_orb(self, container: NSView) -> None:
         colors = [
@@ -63,6 +64,7 @@ class JarvisOverlay:
         sizes = [178.0, 136.0, 96.0, 42.0]
         for index, (size, color) in enumerate(zip(sizes, colors)):
             layer = CAShapeLayer.layer()
+            layer.setFrame_(container.bounds())
             origin = ((220.0 - size) / 2, 42.0 + (178.0 - size) / 2)
             layer.setPath_(CGPathCreateWithEllipseInRect((origin, (size, size)), None))
             layer.setFillColor_(
@@ -95,11 +97,13 @@ class JarvisOverlay:
 
     def show(self, state: str) -> None:
         labels = {
+            "ready": "JARVIS",
             "listening": "ESCUCHANDO",
             "processing": "PROCESANDO",
             "speaking": "HABLANDO",
         }
         self.label.setStringValue_(labels.get(state, "JARVIS"))
+        self.panel.setAlphaValue_(0.42 if state == "ready" else 1.0)
         self.panel.orderFrontRegardless()
 
     def hide(self) -> None:

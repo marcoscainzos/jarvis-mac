@@ -18,6 +18,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Mostrar estados y respuestas mediante notificaciones de macOS.
 - Mostrar un núcleo azul flotante a la izquierda mientras escucha, procesa y habla.
 - Ejecutarse como aplicación accesoria sin mostrar Python en el Dock.
+- Mantener el núcleo visible de forma tenue en reposo y emitir un sonido antes de escuchar.
 
 ## Requisitos
 

@@ -42,13 +42,14 @@ def main() -> None:
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             self.service = JarvisService(
                 Assistant(open_application, memory),
-                LocalWhisperListener(),
+                LocalWhisperListener(duration=7),
                 MacOSSpeaker(),
             )
             self.status = rumps.MenuItem("Estado: listo")
             self.overlay = JarvisOverlay()
             self.listen_item = rumps.MenuItem(
-                "Escuchar  ⌃⌥Espacio", callback=self.start_listening
+                "Escuchar (habla tras el sonido)  ⌃⌥Espacio",
+                callback=self.start_listening,
             )
             self.menu = [
                 self.status,
@@ -64,11 +65,20 @@ def main() -> None:
                 {"<ctrl>+<alt>+<space>": self.start_listening}
             )
             self.hotkeys.start()
+            self.overlay.show("ready")
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
                 return
-            self.events.put(("status", "listening"))
+            if _sender is None:
+                self.events.put(("start", "listening"))
+            else:
+                self._begin_visual_listening()
+            delay = threading.Timer(0.6, self._start_listening_worker)
+            delay.daemon = True
+            delay.start()
+
+        def _start_listening_worker(self) -> None:
             threading.Thread(target=self._listen_worker, daemon=True).start()
 
         def _listen_worker(self) -> None:
@@ -94,22 +104,30 @@ def main() -> None:
                 except queue.Empty:
                     break
                 if event == "status":
-                    labels = {
-                        "ready": "Estado: listo",
-                        "listening": "Estado: escuchando…",
-                        "processing": "Estado: procesando…",
-                        "speaking": "Estado: hablando…",
-                    }
-                    self.status.title = labels[message]
-                    self.title = "◉" if message == "ready" else "●"
-                    if message == "ready":
-                        self.overlay.hide()
-                    else:
-                        self.overlay.show(message)
+                    self._apply_status(message)
+                elif event == "start":
+                    self._begin_visual_listening()
                 elif event == "reply":
                     rumps.notification("Jarvis", "Orden completada", message)
                 elif event == "error":
                     rumps.alert("Jarvis", message)
+
+        def _begin_visual_listening(self) -> None:
+            from AppKit import NSSound
+
+            self._apply_status("listening")
+            NSSound.beep()
+
+        def _apply_status(self, state: str) -> None:
+            labels = {
+                "ready": "Estado: listo",
+                "listening": "Estado: escuchando…",
+                "processing": "Estado: procesando…",
+                "speaking": "Estado: hablando…",
+            }
+            self.status.title = labels[state]
+            self.title = "◉" if state == "ready" else "●"
+            self.overlay.show(state)
 
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
