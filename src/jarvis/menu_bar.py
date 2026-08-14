@@ -10,6 +10,7 @@ from jarvis.assistant import Assistant
 from jarvis.audio import SpeechError
 from jarvis.clap_detector import ClapDetector
 from jarvis.login_item import disable_login, enable_login, is_login_enabled
+from jarvis.local_ai import OllamaAI
 from jarvis.macos import open_application
 from jarvis.macos_speech import MacOSSpeaker
 from jarvis.memory import SQLiteMemory
@@ -58,7 +59,7 @@ def main() -> None:
             super().__init__("J", title="◉", quit_button=None)
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             self.service = JarvisService(
-                Assistant(open_application, memory),
+                Assistant(open_application, memory, OllamaAI()),
                 LocalWhisperListener(
                     duration=4,
                     on_recorded=lambda: AppHelper.callAfter(

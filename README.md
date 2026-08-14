@@ -29,6 +29,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Ajustar automáticamente la sensibilidad de palmadas al ruido ambiente.
 - Empezar a escuchar inmediatamente tras dos palmadas y mostrar la nube mientras atiende.
 - Comunicar por voz los fallos de reconocimiento sin abrir ventanas emergentes.
+- Mantener conversaciones y responder preguntas con Qwen3 ejecutándose localmente mediante Ollama.
 
 ## Requisitos
 

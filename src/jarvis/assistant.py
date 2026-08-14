@@ -7,6 +7,7 @@ from typing import Callable
 import unicodedata
 
 from jarvis.memory import Memory, VolatileMemory
+from jarvis.local_ai import ConversationalAI
 
 
 @dataclass(frozen=True)
@@ -19,10 +20,14 @@ class Assistant:
     """Interpreta las primeras órdenes sin enviar datos fuera del Mac."""
 
     def __init__(
-        self, open_app: Callable[[str], bool], memory: Memory | None = None
+        self,
+        open_app: Callable[[str], bool],
+        memory: Memory | None = None,
+        conversational_ai: ConversationalAI | None = None,
     ) -> None:
         self._open_app = open_app
         self._memory = memory or VolatileMemory()
+        self._conversational_ai = conversational_ai
 
     def handle(self, command: str) -> Reply:
         normalized = self._normalize(command)
@@ -72,9 +77,12 @@ class Assistant:
                 f"No puedo abrir {app_name}. Por seguridad solo utilizo aplicaciones permitidas."
             )
 
-        return Reply(
-            "Todavía no conozco esa orden. Di “qué puedes hacer” para ver ejemplos."
-        )
+        if self._conversational_ai is not None:
+            try:
+                return Reply(self._conversational_ai.reply(command))
+            except RuntimeError as error:
+                return Reply(str(error))
+        return Reply("Todavía no conozco esa orden.")
 
     @staticmethod
     def _extract_name(command: str, normalized: str) -> str | None:

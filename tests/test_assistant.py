@@ -2,6 +2,11 @@ from jarvis.assistant import Assistant
 from jarvis.memory import VolatileMemory
 
 
+class FakeAI:
+    def reply(self, message: str) -> str:
+        return f"Respuesta razonada a: {message}"
+
+
 def test_greets_user() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("Hola Jarvis").message == "Hola. Estoy listo para ayudarte."
@@ -25,6 +30,14 @@ def test_unknown_command_does_not_execute_action() -> None:
 
     assert opened == []
     assert "Todavía no conozco" in reply.message
+
+
+def test_unknown_command_uses_conversational_ai() -> None:
+    assistant = Assistant(lambda _: False, conversational_ai=FakeAI())
+
+    reply = assistant.handle("Explícame por qué el cielo es azul")
+
+    assert reply.message.startswith("Respuesta razonada")
 
 
 def test_exit_command_ends_session() -> None:
