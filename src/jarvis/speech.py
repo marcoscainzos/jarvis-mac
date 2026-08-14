@@ -92,9 +92,7 @@ class LocalWhisperListener:
         block_frames = int(self.sample_rate * block_seconds)
         max_speech_blocks = max(1, int(self.duration / block_seconds))
         silence_blocks_needed = int(0.7 / block_seconds)
-        calibration_blocks = 3
-        calibration_levels: list[float] = []
-        noise_floor = 80.0
+        noise_floor = 30.0
         speech_started = False
         silent_blocks = 0
         pre_roll: deque[Any] = deque(maxlen=5)
@@ -113,15 +111,7 @@ class LocalWhisperListener:
                 block, _overflowed = stream.read(block_frames)
                 samples = block.astype("float32")
                 rms = float(np.sqrt(np.mean(samples * samples)))
-                if index < calibration_blocks:
-                    calibration_levels.append(rms)
-                    pre_roll.append(block.copy())
-                    if index == calibration_blocks - 1:
-                        noise_floor = float(np.median(calibration_levels))
-                    index += 1
-                    continue
-
-                threshold = noise_floor + max(140.0, noise_floor * 1.20)
+                threshold = noise_floor + max(90.0, noise_floor * 1.50)
                 if rms >= threshold:
                     if not speech_started:
                         chunks.extend(pre_roll)

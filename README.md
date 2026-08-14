@@ -36,6 +36,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Mantener una conversación continua hasta oír «Jarvis, duerme», «salir» o «adiós».
 - Usar una voz masculina original y responder «Sí, señor» cuando se le llama por su nombre.
 - Dormirse silenciosamente tras diez segundos sin una nueva frase.
+- Empezar a captar la voz inmediatamente al aparecer la nube, sin un pitido que interfiera.
 
 ## Requisitos
 

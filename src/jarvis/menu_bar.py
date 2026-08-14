@@ -157,10 +157,7 @@ def main() -> None:
             rumps.notification("Jarvis", "Orden completada", message)
 
         def _begin_visual_listening(self) -> None:
-            from AppKit import NSSound
-
             self._apply_status("listening")
-            NSSound.beep()
 
         def _recording_finished(self) -> None:
             from AppKit import NSSound
