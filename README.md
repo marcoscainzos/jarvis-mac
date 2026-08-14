@@ -23,6 +23,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Detectar audio vacío y explicar cómo corregir el permiso del micrófono.
 - Cortar siempre la grabación tras cuatro segundos, incluso si CoreAudio se bloquea.
 - Actualizar la interfaz mediante el hilo principal nativo de Cocoa.
+- Evitar que los procesos auxiliares de Whisper creen iconos duplicados.
 
 ## Requisitos
 
