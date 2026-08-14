@@ -30,6 +30,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Empezar a escuchar inmediatamente tras dos palmadas y mostrar la nube mientras atiende.
 - Comunicar por voz los fallos de reconocimiento sin abrir ventanas emergentes.
 - Mantener conversaciones y responder preguntas con Qwen3 ejecutándose localmente mediante Ollama.
+- Detectar automáticamente cuándo terminas de hablar y evitar que Jarvis se reactive con su propia voz.
 
 ## Requisitos
 

@@ -52,6 +52,10 @@ class DoubleClapPattern:
     def _update_noise_floor(self, peak: int) -> None:
         self.noise_floor = self.noise_floor * 0.96 + peak * 0.04
 
+    def reset(self) -> None:
+        self._last_clap = None
+        self._above_threshold = False
+
 
 class ClapDetector:
     def __init__(
@@ -63,6 +67,7 @@ class ClapDetector:
         self.pattern = pattern or DoubleClapPattern()
         self.stream: Any = None
         self.paused = False
+        self._blocked_until = 0.0
 
     def start(self) -> None:
         if self.stream is not None:
@@ -88,13 +93,15 @@ class ClapDetector:
     def pause(self) -> None:
         self.paused = True
 
-    def resume(self) -> None:
+    def resume(self, cooldown: float = 0.0) -> None:
+        self.pattern.reset()
+        self._blocked_until = time.monotonic() + cooldown
         self.paused = False
 
     def _audio_callback(
         self, indata: Any, _frames: int, _time_info: Any, _status: Any
     ) -> None:
-        if self.paused:
+        if self.paused or time.monotonic() < self._blocked_until:
             return
         peak = int(abs(indata).max())
         if self.pattern.feed(peak, time.monotonic()):

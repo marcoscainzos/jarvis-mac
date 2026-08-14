@@ -26,7 +26,8 @@ class OllamaAI:
                 "content": (
                     "Eres Jarvis, un asistente personal útil, prudente y conversacional. "
                     "Responde siempre en español claro. Como la respuesta se leerá en voz "
-                    "alta, sé conciso y no uses markdown. No afirmes haber realizado acciones "
+                    "alta, responde normalmente en un máximo de tres frases y no uses markdown. "
+                    "No afirmes haber realizado acciones "
                     "en el ordenador si no se te ha proporcionado una herramienta para ello."
                 ),
             }
@@ -40,7 +41,12 @@ class OllamaAI:
                 "messages": messages,
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0.6, "num_ctx": 4096},
+                "keep_alive": "30m",
+                "options": {
+                    "temperature": 0.6,
+                    "num_ctx": 4096,
+                    "num_predict": 160,
+                },
             }
         ).encode("utf-8")
         request = Request(

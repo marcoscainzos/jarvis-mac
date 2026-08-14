@@ -61,7 +61,7 @@ def main() -> None:
             self.service = JarvisService(
                 Assistant(open_application, memory, OllamaAI()),
                 LocalWhisperListener(
-                    duration=4,
+                    duration=8,
                     on_recorded=lambda: AppHelper.callAfter(
                         self._apply_status, "processing"
                     ),
@@ -137,7 +137,7 @@ def main() -> None:
         def _finish_listening(self) -> None:
             self._apply_status("ready")
             self.visual_session = False
-            self.clap_detector.resume()
+            self.clap_detector.resume(cooldown=1.5)
 
         def _show_reply(self, message: str) -> None:
             rumps.notification("Jarvis", "Orden completada", message)

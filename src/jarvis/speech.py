@@ -34,16 +34,7 @@ class LocalWhisperListener:
         np, sd, whisper_model = self._load_dependencies()
 
         try:
-            recording = sd.rec(
-                int(self.duration * self.sample_rate),
-                samplerate=self.sample_rate,
-                channels=1,
-                dtype="int16",
-            )
-            # `wait()` puede quedar bloqueado si CoreAudio no entrega el flujo.
-            # Dormir un tiempo fijo y detenerlo garantiza el límite de grabación.
-            sd.sleep(self.duration * 1_000)
-            sd.stop()
+            recording = self._record_until_silence(np, sd)
         except Exception as error:
             sd.stop()
             raise SpeechError(
@@ -56,9 +47,7 @@ class LocalWhisperListener:
         peak = int(np.max(np.abs(recording.astype("int32"))))
         if peak < 80:
             raise SpeechError(
-                "No está entrando sonido por el micrófono. Activa el permiso para "
-                "Python o Jarvis en Ajustes del Sistema > Privacidad y seguridad > "
-                "Micrófono, y comprueba que el micrófono correcto esté seleccionado."
+                "No está entrando sonido por el micrófono. Revisa el permiso de Jarvis."
             )
 
         temporary = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -91,6 +80,46 @@ class LocalWhisperListener:
         if not transcript:
             raise SpeechError("No he entendido la frase. Inténtalo de nuevo.")
         return transcript
+
+    def _record_until_silence(self, np: Any, sd: Any) -> Any:
+        """Termina poco después de que el usuario deja de hablar."""
+        block_seconds = 0.10
+        block_frames = int(self.sample_rate * block_seconds)
+        max_blocks = max(1, int(self.duration / block_seconds))
+        min_blocks = int(0.9 / block_seconds)
+        silence_blocks_needed = int(0.7 / block_seconds)
+        noise_floor = 60.0
+        speech_started = False
+        silent_blocks = 0
+        chunks: list[Any] = []
+
+        with sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype="int16",
+                blocksize=block_frames,
+            ) as stream:
+            for index in range(max_blocks):
+                block, _overflowed = stream.read(block_frames)
+                chunks.append(block.copy())
+                samples = block.astype("float32")
+                rms = float(np.sqrt(np.mean(samples * samples)))
+                threshold = max(180.0, noise_floor * 3.0)
+                if rms >= threshold:
+                    speech_started = True
+                    silent_blocks = 0
+                else:
+                    if not speech_started:
+                        noise_floor = noise_floor * 0.90 + rms * 0.10
+                    else:
+                        silent_blocks += 1
+                if (
+                    speech_started
+                    and index >= min_blocks
+                    and silent_blocks >= silence_blocks_needed
+                ):
+                    break
+        return np.concatenate(chunks, axis=0)
 
     @staticmethod
     def _load_dependencies() -> tuple[Any, Any, Any]:
