@@ -61,9 +61,9 @@ def main() -> None:
             self.service = JarvisService(
                 Assistant(open_application, memory, OllamaAI()),
                 LocalWhisperListener(
-                    duration=8,
+                    duration=5,
                     on_recorded=lambda: AppHelper.callAfter(
-                        self._apply_status, "processing"
+                        self._recording_finished
                     ),
                 ),
                 MacOSSpeaker(),
@@ -146,6 +146,12 @@ def main() -> None:
             from AppKit import NSSound
 
             self._apply_status("listening")
+            NSSound.beep()
+
+        def _recording_finished(self) -> None:
+            from AppKit import NSSound
+
+            self._apply_status("processing")
             NSSound.beep()
 
         def _apply_status(self, state: str) -> None:

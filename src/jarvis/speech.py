@@ -85,10 +85,12 @@ class LocalWhisperListener:
         """Termina poco después de que el usuario deja de hablar."""
         block_seconds = 0.10
         block_frames = int(self.sample_rate * block_seconds)
-        max_blocks = max(1, int(self.duration / block_seconds))
+        max_blocks = max(1, int(min(self.duration, 5.0) / block_seconds))
         min_blocks = int(0.9 / block_seconds)
         silence_blocks_needed = int(0.7 / block_seconds)
-        noise_floor = 60.0
+        calibration_blocks = 3
+        calibration_levels: list[float] = []
+        noise_floor = 80.0
         speech_started = False
         silent_blocks = 0
         chunks: list[Any] = []
@@ -104,13 +106,19 @@ class LocalWhisperListener:
                 chunks.append(block.copy())
                 samples = block.astype("float32")
                 rms = float(np.sqrt(np.mean(samples * samples)))
-                threshold = max(180.0, noise_floor * 3.0)
+                if index < calibration_blocks:
+                    calibration_levels.append(rms)
+                    if index == calibration_blocks - 1:
+                        noise_floor = float(np.median(calibration_levels))
+                    continue
+
+                threshold = noise_floor + max(140.0, noise_floor * 1.20)
                 if rms >= threshold:
                     speech_started = True
                     silent_blocks = 0
                 else:
                     if not speech_started:
-                        noise_floor = noise_floor * 0.90 + rms * 0.10
+                        noise_floor = noise_floor * 0.80 + rms * 0.20
                     else:
                         silent_blocks += 1
                 if (
