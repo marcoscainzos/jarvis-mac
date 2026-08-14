@@ -27,6 +27,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Activarse con dos palmadas analizadas localmente, sin almacenar audio.
 - Iniciarse automáticamente al entrar en la sesión de macOS.
 - Ajustar automáticamente la sensibilidad de palmadas al ruido ambiente.
+- Empezar a escuchar inmediatamente tras dos palmadas, sin mostrar una nube flotante.
 
 ## Requisitos
 

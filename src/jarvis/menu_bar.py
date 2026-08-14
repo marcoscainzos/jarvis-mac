@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import fcntl
 import threading
-import time
 from pathlib import Path
 from typing import Any
 
@@ -49,8 +48,6 @@ def main() -> None:
     from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
     from PyObjCTools import AppHelper
 
-    from jarvis.overlay import JarvisOverlay
-
     NSApplication.sharedApplication().setActivationPolicy_(
         NSApplicationActivationPolicyAccessory
     )
@@ -70,7 +67,6 @@ def main() -> None:
                 MacOSSpeaker(),
             )
             self.status = rumps.MenuItem("Estado: listo")
-            self.overlay = JarvisOverlay()
             self.listen_item = rumps.MenuItem(
                 "Escuchar (habla tras el sonido)  ⌃⌥Espacio",
                 callback=self.start_listening,
@@ -106,7 +102,6 @@ def main() -> None:
                 self.clap_detector.start()
             except Exception:
                 self.clap_item.title = "Dos palmadas: no disponibles"
-            self.overlay.show("ready")
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
@@ -117,7 +112,6 @@ def main() -> None:
 
         def _listen_worker(self) -> None:
             try:
-                time.sleep(0.6)
                 command = self.service.listener.listen()
                 reply = self.service.assistant.handle(command)
                 AppHelper.callAfter(self._apply_status, "speaking")
@@ -162,7 +156,6 @@ def main() -> None:
             }
             self.status.title = labels[state]
             self.title = "◉" if state == "ready" else "●"
-            self.overlay.show(state)
 
         def toggle_claps(self, _sender: Any) -> None:
             if self.clap_detector.stream is None:
@@ -189,7 +182,6 @@ def main() -> None:
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
             self.clap_detector.stop()
-            self.overlay.hide()
             rumps.quit_application()
 
     JarvisMenuBar().run()
