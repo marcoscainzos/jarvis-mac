@@ -25,6 +25,7 @@ def install_app(applications_dir: Path | None = None) -> Path:
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": "0.4.0",
         "LSUIElement": True,
+        "LSArchitecturePriority": ["arm64"],
         "NSHighResolutionCapable": True,
         "NSMicrophoneUsageDescription": "Jarvis necesita oír tus órdenes.",
     }
@@ -33,7 +34,11 @@ def install_app(applications_dir: Path | None = None) -> Path:
 
     launcher = executable_dir / "Jarvis"
     launcher.write_text(
-        "#!/bin/sh\nexec " + _shell_quote(str(jarvis_command)) + "\n",
+        "#!/bin/sh\nexec /usr/bin/arch -arm64 "
+        + _shell_quote(sys.executable)
+        + " "
+        + _shell_quote(str(jarvis_command))
+        + "\n",
         encoding="utf-8",
     )
     launcher.chmod(launcher.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)

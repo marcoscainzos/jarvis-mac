@@ -91,6 +91,8 @@ Jarvis ignora mayúsculas, acentos y signos de puntuación al interpretar las
 
 Si una dependencia de voz falla, Jarvis muestra el componente exacto y guarda
 el diagnóstico técnico en `~/.jarvis/jarvis.log`.
+En Macs con Apple Silicon, el instalador fuerza la ejecución nativa `arm64` para
+evitar que Finder inicie Python mediante Rosetta.
 
 ## Pruebas
 
