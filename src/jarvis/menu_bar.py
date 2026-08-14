@@ -7,7 +7,7 @@ from typing import Any
 
 from jarvis.app_service import JarvisService
 from jarvis.assistant import Assistant
-from jarvis.audio import SpeechError
+from jarvis.audio import NoSpeechTimeout, SpeechError
 from jarvis.clap_detector import ClapDetector
 from jarvis.login_item import disable_login, enable_login, is_login_enabled
 from jarvis.local_ai import OllamaAI
@@ -117,10 +117,15 @@ def main() -> None:
             threading.Thread(target=self._listen_worker, daemon=True).start()
 
         def _listen_worker(self) -> None:
+            first_turn = True
             try:
                 while True:
                     try:
-                        command = self.service.listener.listen()
+                        command = self.service.listener.listen(
+                            wait_timeout=None if first_turn else 10.0
+                        )
+                    except NoSpeechTimeout:
+                        break
                     except SpeechError as error:
                         self.service.speaker.speak(str(error))
                         AppHelper.callAfter(self._begin_followup_listening)
@@ -135,6 +140,7 @@ def main() -> None:
                     )
                     if reply.should_exit:
                         break
+                    first_turn = False
                     AppHelper.callAfter(self._begin_followup_listening)
             except Exception as error:
                 self.service.speaker.speak(f"Ha ocurrido un error: {error}")

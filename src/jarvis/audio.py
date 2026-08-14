@@ -14,3 +14,6 @@ class Speaker(Protocol):
 class SpeechError(RuntimeError):
     """Error recuperable del sistema de voz."""
 
+
+class NoSpeechTimeout(SpeechError):
+    """La continuación terminó porque el usuario guardó silencio."""

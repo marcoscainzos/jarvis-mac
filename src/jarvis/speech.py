@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from jarvis.audio import SpeechError
+from jarvis.audio import NoSpeechTimeout, SpeechError
 
 
 class LocalWhisperListener:
@@ -31,11 +31,13 @@ class LocalWhisperListener:
         self.on_recorded = on_recorded
         self._model: Any = None
 
-    def listen(self) -> str:
+    def listen(self, wait_timeout: float | None = None) -> str:
         np, sd, whisper_model = self._load_dependencies()
 
         try:
-            recording = self._record_until_silence(np, sd)
+            recording = self._record_until_silence(np, sd, wait_timeout)
+        except NoSpeechTimeout:
+            raise
         except Exception as error:
             sd.stop()
             raise SpeechError(
@@ -82,7 +84,9 @@ class LocalWhisperListener:
             raise SpeechError("No he entendido la frase. Inténtalo de nuevo.")
         return transcript
 
-    def _record_until_silence(self, np: Any, sd: Any) -> Any:
+    def _record_until_silence(
+        self, np: Any, sd: Any, wait_timeout: float | None = None
+    ) -> Any:
         """Termina poco después de que el usuario deja de hablar."""
         block_seconds = 0.10
         block_frames = int(self.sample_rate * block_seconds)
@@ -96,6 +100,7 @@ class LocalWhisperListener:
         pre_roll: deque[Any] = deque(maxlen=5)
         chunks: list[Any] = []
         speech_blocks = 0
+        waiting_blocks = 0
 
         with sd.InputStream(
                 samplerate=self.sample_rate,
@@ -128,6 +133,12 @@ class LocalWhisperListener:
                     if not speech_started:
                         noise_floor = noise_floor * 0.80 + rms * 0.20
                         pre_roll.append(block.copy())
+                        waiting_blocks += 1
+                        if (
+                            wait_timeout is not None
+                            and waiting_blocks * block_seconds >= wait_timeout
+                        ):
+                            raise NoSpeechTimeout()
                     else:
                         chunks.append(block.copy())
                         speech_blocks += 1
