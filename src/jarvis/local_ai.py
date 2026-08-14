@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 import sqlite3
 from typing import Protocol
+import unicodedata
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
 class ConversationalAI(Protocol):
     def reply(self, message: str) -> str: ...
+
+    def plan_action(self, message: str) -> dict[str, str]: ...
 
 
 class ConversationHistory:
@@ -129,6 +132,102 @@ class OllamaAI:
         conversation = self._messages[1:]
         self._messages = [self._messages[0], *conversation[-20:]]
         return answer
+
+    def plan_action(self, message: str) -> dict[str, str]:
+        """Traduce lenguaje natural a una acción limitada y verificable."""
+        system = (
+            "Convierte la petición en UNA acción segura de ordenador. Devuelve solo JSON. "
+            "Acciones: open_app, web_search, youtube, list_files, find_file, open_file, "
+            "create_folder o none. target contiene la aplicación, consulta, archivo o carpeta. "
+            "location solo puede ser desktop, downloads o documents; 'bajé', 'descargué' y "
+            "'lo último que bajé' significan downloads. Usa list_files solo para preguntar qué "
+            "hay o qué es reciente; usa find_file para localizar y open_file para abrir. "
+            "Si no se indica ubicación usa documents. "
+            "Nunca planifiques borrar, sobrescribir, instalar, ejecutar comandos, cambiar permisos, "
+            "usar contraseñas, enviar mensajes o comprar: en esos casos usa none."
+        )
+        schema = {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "open_app", "web_search", "youtube", "list_files",
+                        "find_file", "open_file", "create_folder", "none",
+                    ],
+                },
+                "target": {"type": "string"},
+                "location": {
+                    "type": "string",
+                    "enum": ["desktop", "downloads", "documents"],
+                },
+            },
+            "required": ["action", "target", "location"],
+        }
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {
+                        "role": "user",
+                        "content": "Enséñame lo último que bajé",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": json.dumps({"action": "list_files", "target": "", "location": "downloads"}),
+                    },
+                    {
+                        "role": "user",
+                        "content": "Encuentra el PDF del examen en el escritorio",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": json.dumps({"action": "find_file", "target": "examen pdf", "location": "desktop"}),
+                    },
+                    {"role": "user", "content": message},
+                ],
+                "format": schema,
+                "stream": False,
+                "think": False,
+                "keep_alive": "30m",
+                "options": {"temperature": 0.1, "num_predict": 100},
+            }
+        ).encode("utf-8")
+        request = Request(
+            self.endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=60) as response:
+                result = json.load(response)
+            content = result.get("message", {}).get("content", "{}")
+            plan = json.loads(content)
+        except (OSError, URLError, TimeoutError, ValueError, TypeError):
+            return {"action": "none", "target": "", "location": "documents"}
+        allowed = {
+            "open_app", "web_search", "youtube", "list_files", "find_file",
+            "open_file", "create_folder", "none",
+        }
+        action = str(plan.get("action", "none"))
+        location = str(plan.get("location", "documents"))
+        plain_message = "".join(
+            character for character in unicodedata.normalize("NFKD", message.casefold())
+            if not unicodedata.combining(character)
+        )
+        if "escritorio" in plain_message:
+            location = "desktop"
+        elif any(word in plain_message for word in ("descargas", "descargue", "baje")):
+            location = "downloads"
+        elif "documentos" in plain_message:
+            location = "documents"
+        return {
+            "action": action if action in allowed else "none",
+            "target": str(plan.get("target", ""))[:500],
+            "location": location if location in {"desktop", "downloads", "documents"} else "documents",
+        }
 
     @staticmethod
     def _needs_reasoning(message: str) -> bool:

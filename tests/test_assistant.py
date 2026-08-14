@@ -1,5 +1,6 @@
 from jarvis.assistant import Assistant
 from jarvis.memory import VolatileMemory
+from pathlib import Path
 
 
 class FakeTools:
@@ -22,6 +23,22 @@ class FakeTools:
         self.calls.append(("search_web", query))
         return True
 
+    def list_files(self, location: str) -> list[str]:
+        self.calls.append(("list_files", location))
+        return ["informe.pdf", "foto.png"]
+
+    def find_file(self, query: str, location: str):
+        self.calls.append(("find_file", query, location))
+        return Path("/tmp/informe.pdf")
+
+    def open_file(self, query: str, location: str):
+        self.calls.append(("open_file", query, location))
+        return Path("/tmp/informe.pdf")
+
+    def create_folder(self, name: str, location: str):
+        self.calls.append(("create_folder", name, location))
+        return Path("/tmp") / name
+
     def create_reminder(self, title, due) -> bool:
         self.calls.append(("reminder", title, due))
         return True
@@ -34,6 +51,14 @@ class FakeTools:
 class FakeAI:
     def reply(self, message: str) -> str:
         return f"Respuesta razonada a: {message}"
+
+
+class FakePlannerAI(FakeAI):
+    def __init__(self, plan: dict[str, str]) -> None:
+        self.plan = plan
+
+    def plan_action(self, message: str) -> dict[str, str]:
+        return self.plan
 
 
 def test_greets_user() -> None:
@@ -115,6 +140,32 @@ def test_creates_reminders_in_minutes_and_days() -> None:
         ("reminder", "sacar la ropa"),
         ("reminder", "llamar a Ana"),
     ]
+
+
+def test_ai_plans_natural_file_action() -> None:
+    tools = FakeTools()
+    ai = FakePlannerAI(
+        {"action": "open_file", "target": "informe", "location": "downloads"}
+    )
+    assistant = Assistant(lambda _: False, conversational_ai=ai, computer_tools=tools)
+
+    reply = assistant.handle("podrías localizar y abrir el informe de descargas")
+
+    assert tools.calls == [("open_file", "informe", "downloads")]
+    assert reply.message == "Aquí tienes informe.pdf."
+
+
+def test_blocks_critical_planned_actions() -> None:
+    tools = FakeTools()
+    ai = FakePlannerAI(
+        {"action": "find_file", "target": "todo", "location": "documents"}
+    )
+    assistant = Assistant(lambda _: False, conversational_ai=ai, computer_tools=tools)
+
+    reply = assistant.handle("borra todos los archivos de documentos")
+
+    assert tools.calls == []
+    assert "seguridad" in reply.message
 
 
 def test_exit_command_ends_session() -> None:

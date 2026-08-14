@@ -89,8 +89,12 @@ class Assistant:
             if self._open_app(app_name):
                 return Reply(f"Abriendo {app_name}.")
             return Reply(
-                f"No puedo abrir {app_name}. Por seguridad solo utilizo aplicaciones permitidas."
+                f"No he encontrado la aplicación {app_name}."
             )
+
+        planned_reply = self._handle_planned_action(command, normalized)
+        if planned_reply is not None:
+            return planned_reply
 
         if self._conversational_ai is not None:
             try:
@@ -98,6 +102,75 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_planned_action(self, command: str, normalized: str) -> Reply | None:
+        if self._computer_tools is None or self._conversational_ai is None:
+            return None
+        blocked = (
+            "borra", "elimina", "formatea", "contrasena", "contraseña", "password",
+            "permiso", "instala", "desinstala", "terminal", "ejecuta comando",
+            "envia", "envía", "compra", "paga",
+        )
+        if any(cue in normalized for cue in blocked):
+            return Reply(
+                "Esa operación puede afectar a datos, permisos o seguridad. No la ejecutaré sin un sistema de confirmación específico."
+            )
+        action_cues = (
+            "abre", "inicia", "lanza", "busca", "encuentra", "localiza", "muestra",
+            "ensena", "enseña", "ensename", "muéstrame", "que hay", "qué hay",
+            "baje", "descargue", "crea una carpeta", "nueva carpeta",
+            "youtube", "safari", "internet", "escritorio", "descargas", "documentos",
+        )
+        if not any(cue in normalized for cue in action_cues):
+            return None
+        planner = getattr(self._conversational_ai, "plan_action", None)
+        if planner is None:
+            return None
+        plan = planner(command)
+        action = plan.get("action", "none")
+        target = plan.get("target", "").strip()
+        location = plan.get("location", "documents")
+        place_names = {
+            "desktop": "el Escritorio",
+            "downloads": "Descargas",
+            "documents": "Documentos",
+        }
+        place = place_names.get(location, "Documentos")
+
+        if action == "open_app" and target:
+            if self._open_app(target):
+                return Reply(f"Ya tienes {target} abierto.")
+            return Reply(f"No encuentro una aplicación llamada {target}.")
+        if action == "web_search" and target:
+            if self._computer_tools.search_web(target):
+                return Reply(f"Te he dejado los resultados de {target} en Safari.")
+            return Reply("Safari no ha podido abrir la búsqueda.")
+        if action == "youtube" and target:
+            if self._computer_tools.play_music(target):
+                return Reply(f"Listo, he puesto {target} en YouTube.")
+            return Reply("YouTube no ha respondido; prueba otra vez en un momento.")
+        if action == "list_files":
+            names = self._computer_tools.list_files(location)
+            if not names:
+                return Reply(f"No veo archivos en {place}.")
+            preview = ", ".join(names[:5])
+            return Reply(f"Lo más reciente en {place} es: {preview}.")
+        if action == "find_file" and target:
+            path = self._computer_tools.find_file(target, location)
+            if path is None:
+                return Reply(f"No encuentro {target} en {place}.")
+            return Reply(f"He encontrado {path.name} en {place}.")
+        if action == "open_file" and target:
+            path = self._computer_tools.open_file(target, location)
+            if path is None:
+                return Reply(f"No encuentro {target} en {place}.")
+            return Reply(f"Aquí tienes {path.name}.")
+        if action == "create_folder" and target:
+            path = self._computer_tools.create_folder(target, location)
+            if path is None:
+                return Reply(f"No he podido crear esa carpeta en {place}.")
+            return Reply(f"Carpeta {path.name} creada en {place}.")
+        return None
 
     def _handle_computer_action(
         self, command: str, normalized: str
