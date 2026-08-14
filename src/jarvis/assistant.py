@@ -43,14 +43,13 @@ class Assistant:
             "jarvis duerme",
         }:
             return Reply("Hasta pronto.", should_exit=True)
+        if normalized in {"jarvis", "allervis", "alervis"}:
+            return Reply("Sí, señor.")
         if normalized in {
             "hola",
             "hola jarvis",
             "hola allervis",
             "hola alervis",
-            "jarvis",
-            "allervis",
-            "alervis",
         }:
             name = self._memory.get("user_name")
             greeting = f"Hola, {name}." if name else "Hola."

@@ -34,6 +34,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Calibrar el ruido ambiente al empezar y avisar con un sonido cuando termina la grabación.
 - Mantener la nube esperando después de las palmadas hasta que el usuario empiece a hablar.
 - Mantener una conversación continua hasta oír «Jarvis, duerme», «salir» o «adiós».
+- Usar una voz masculina original y responder «Sí, señor» cuando se le llama por su nombre.
 
 ## Requisitos
 

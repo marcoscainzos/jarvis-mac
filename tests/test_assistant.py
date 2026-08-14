@@ -74,4 +74,5 @@ def test_understands_voice_punctuation_and_accents() -> None:
 
 def test_accepts_common_jarvis_transcription() -> None:
     assistant = Assistant(lambda _: False)
-    assert assistant.handle("Allervis.").message.startswith("Hola.")
+    assert assistant.handle("Allervis.").message == "Sí, señor."
+    assert assistant.handle("Jarvis").message == "Sí, señor."
