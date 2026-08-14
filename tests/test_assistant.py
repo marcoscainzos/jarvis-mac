@@ -48,3 +48,16 @@ def test_rejects_unreasonably_long_name() -> None:
     assistant = Assistant(lambda _: False)
     reply = assistant.handle(f"me llamo {'x' * 61}")
     assert "Todavía no conozco" in reply.message
+
+
+def test_understands_voice_punctuation_and_accents() -> None:
+    assistant = Assistant(lambda _: False)
+
+    assert "Puedo recordar" in assistant.handle("¿Qué puedes hacer?").message
+    assert assistant.handle("¡Hola Jarvis!").message.startswith("Hola.")
+    assert assistant.handle("¿Qué hora es?").message.startswith("Son las")
+
+
+def test_accepts_common_jarvis_transcription() -> None:
+    assistant = Assistant(lambda _: False)
+    assert assistant.handle("Allervis.").message.startswith("Hola.")
