@@ -40,8 +40,12 @@ class LocalWhisperListener:
                 channels=1,
                 dtype="int16",
             )
-            sd.wait()
+            # `wait()` puede quedar bloqueado si CoreAudio no entrega el flujo.
+            # Dormir un tiempo fijo y detenerlo garantiza el límite de grabación.
+            sd.sleep(self.duration * 1_000)
+            sd.stop()
         except Exception as error:
+            sd.stop()
             raise SpeechError(
                 "No puedo usar el micrófono. Revisa su permiso en Ajustes del Sistema."
             ) from error

@@ -112,6 +112,7 @@ def main() -> None:
                 elif event == "reply":
                     rumps.notification("Jarvis", "Orden completada", message)
                 elif event == "error":
+                    self._apply_status("ready")
                     rumps.alert("Jarvis", message)
 
         def _begin_visual_listening(self) -> None:
