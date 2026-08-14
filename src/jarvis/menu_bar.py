@@ -118,16 +118,24 @@ def main() -> None:
 
         def _listen_worker(self) -> None:
             try:
-                command = self.service.listener.listen()
-                reply = self.service.assistant.handle(command)
-                AppHelper.callAfter(self._apply_status, "speaking")
-                self.service.speaker.speak(reply.message)
-                AppHelper.callAfter(
-                    self._show_reply,
-                    f"Tú: {command}\n\nJarvis: {reply.message}",
-                )
-            except SpeechError as error:
-                self.service.speaker.speak(str(error))
+                while True:
+                    try:
+                        command = self.service.listener.listen()
+                    except SpeechError as error:
+                        self.service.speaker.speak(str(error))
+                        AppHelper.callAfter(self._begin_followup_listening)
+                        continue
+
+                    reply = self.service.assistant.handle(command)
+                    AppHelper.callAfter(self._apply_status, "speaking")
+                    self.service.speaker.speak(reply.message)
+                    AppHelper.callAfter(
+                        self._show_reply,
+                        f"Tú: {command}\n\nJarvis: {reply.message}",
+                    )
+                    if reply.should_exit:
+                        break
+                    AppHelper.callAfter(self._begin_followup_listening)
             except Exception as error:
                 self.service.speaker.speak(f"Ha ocurrido un error: {error}")
             finally:
@@ -153,6 +161,9 @@ def main() -> None:
 
             self._apply_status("processing")
             NSSound.beep()
+
+        def _begin_followup_listening(self) -> None:
+            self._apply_status("listening")
 
         def _apply_status(self, state: str) -> None:
             labels = {

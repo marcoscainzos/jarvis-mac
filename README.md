@@ -33,6 +33,7 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Detectar automáticamente cuándo terminas de hablar y evitar que Jarvis se reactive con su propia voz.
 - Calibrar el ruido ambiente al empezar y avisar con un sonido cuando termina la grabación.
 - Mantener la nube esperando después de las palmadas hasta que el usuario empiece a hablar.
+- Mantener una conversación continua hasta oír «Jarvis, duerme», «salir» o «adiós».
 
 ## Requisitos
 

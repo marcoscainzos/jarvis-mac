@@ -34,7 +34,14 @@ class Assistant:
 
         if not normalized:
             return Reply("No he oído ninguna orden.")
-        if normalized in {"salir", "adios", "terminar"}:
+        if normalized in {
+            "salir",
+            "adios",
+            "terminar",
+            "duerme",
+            "duerme jarvis",
+            "jarvis duerme",
+        }:
             return Reply("Hasta pronto.", should_exit=True)
         if normalized in {
             "hola",

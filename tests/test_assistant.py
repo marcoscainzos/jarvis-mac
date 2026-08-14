@@ -43,6 +43,7 @@ def test_unknown_command_uses_conversational_ai() -> None:
 def test_exit_command_ends_session() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("salir").should_exit is True
+    assert assistant.handle("Jarvis, duerme").should_exit is True
 
 
 def test_remembers_and_forgets_name() -> None:
