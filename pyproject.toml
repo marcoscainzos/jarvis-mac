@@ -28,6 +28,7 @@ build = ["pyinstaller>=6,<7"]
 jarvis = "jarvis.cli:main"
 jarvis-app = "jarvis.menu_bar:main"
 jarvis-install-app = "jarvis.macos_installer:main"
+jarvis-login-enable = "jarvis.login_item:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

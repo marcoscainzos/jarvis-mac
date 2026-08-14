@@ -24,6 +24,8 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Cortar siempre la grabación tras cuatro segundos, incluso si CoreAudio se bloquea.
 - Actualizar la interfaz mediante el hilo principal nativo de Cocoa.
 - Evitar que los procesos auxiliares de Whisper creen iconos duplicados.
+- Activarse con dos palmadas analizadas localmente, sin almacenar audio.
+- Iniciarse automáticamente al entrar en la sesión de macOS.
 
 ## Requisitos
 
