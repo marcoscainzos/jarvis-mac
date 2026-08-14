@@ -55,8 +55,10 @@ class Assistant:
             "hola alervis",
         }:
             name = self._memory.get("user_name")
-            greeting = f"Hola, {name}." if name else "Hola."
-            return Reply(f"{greeting} Estoy listo para ayudarte.")
+            if name:
+                return Reply(f"Hola, {name}. Estoy listo para ayudarte.")
+            if self._conversational_ai is None:
+                return Reply("Hola. Estoy listo para ayudarte.")
         if normalized == "que sabes de mi":
             name = self._memory.get("user_name")
             if name:

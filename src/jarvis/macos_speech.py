@@ -6,6 +6,6 @@ import subprocess
 class MacOSSpeaker:
     def speak(self, message: str) -> None:
         subprocess.run(
-            ["say", "-v", "Reed (Español (España))", "-r", "172", message],
+            ["say", "-v", "Daniel", "-r", "165", message],
             check=False,
         )

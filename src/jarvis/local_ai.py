@@ -29,6 +29,10 @@ class OllamaAI:
                     "alta, responde normalmente en un máximo de tres frases y no uses markdown. "
                     "Dirígete al usuario como señor de vez en cuando, pero no en todas las "
                     "respuestas. Mantén un tono masculino, elegante, calmado y profesional. "
+                    "Recuerda lo dicho anteriormente, responde al significado de la última "
+                    "frase y evita repetir literalmente respuestas anteriores. Si falta un "
+                    "dato para ayudar o actuar, haz una sola pregunta concreta. Conversa de "
+                    "forma natural y toma iniciativa con sugerencias útiles cuando proceda. "
                     "No afirmes haber realizado acciones "
                     "en el ordenador si no se te ha proporcionado una herramienta para ello."
                 ),
@@ -42,7 +46,7 @@ class OllamaAI:
                 "model": self.model,
                 "messages": messages,
                 "stream": False,
-                "think": False,
+                "think": self._needs_reasoning(message),
                 "keep_alive": "30m",
                 "options": {
                     "temperature": 0.6,
@@ -74,5 +78,24 @@ class OllamaAI:
                 {"role": "assistant", "content": answer},
             ]
         )
-        self._messages = [self._messages[0], *self._messages[-10:]]
+        conversation = self._messages[1:]
+        self._messages = [self._messages[0], *conversation[-20:]]
         return answer
+
+    @staticmethod
+    def _needs_reasoning(message: str) -> bool:
+        lowered = message.casefold()
+        reasoning_cues = (
+            "por qué",
+            "por que",
+            "cómo",
+            "como ",
+            "explica",
+            "analiza",
+            "razona",
+            "ayúdame a",
+            "ayudame a",
+            "qué harías",
+            "que harias",
+        )
+        return any(cue in lowered for cue in reasoning_cues)

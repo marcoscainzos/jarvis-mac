@@ -34,11 +34,12 @@ dispositivos. La versión actual incluye adaptadores de voz y acciones para macO
 - Calibrar el ruido ambiente al empezar y avisar con un sonido cuando termina la grabación.
 - Mantener la nube esperando después de las palmadas hasta que el usuario empiece a hablar.
 - Mantener una conversación continua hasta oír «Jarvis, duerme», «salir» o «adiós».
-- Usar una voz masculina original y responder «Sí, señor» cuando se le llama por su nombre.
+- Usar una voz masculina británica y responder «Sí, señor» cuando se le llama por su nombre.
 - Dormirse silenciosamente tras diez segundos sin una nueva frase.
 - Empezar a captar la voz inmediatamente al aparecer la nube, sin un pitido que interfiera.
 - Liberar el micrófono del detector de palmadas antes de iniciar el reconocimiento de voz.
 - Controlar Música y volumen, crear recordatorios por horas y eventos de Calendario.
+- Conservar más contexto, evitar respuestas repetidas y activar razonamiento en preguntas complejas.
 
 ## Requisitos
 
