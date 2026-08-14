@@ -10,22 +10,30 @@ class DoubleClapPattern:
 
     def __init__(
         self,
-        threshold: int = 9_000,
-        min_gap: float = 0.12,
-        max_gap: float = 0.85,
+        threshold: int = 1_800,
+        min_gap: float = 0.08,
+        max_gap: float = 1.50,
     ) -> None:
-        self.threshold = threshold
-        self.release_threshold = int(threshold * 0.55)
+        self.minimum_threshold = threshold
+        self.noise_floor = max(50.0, threshold / 10)
         self.min_gap = min_gap
         self.max_gap = max_gap
         self._last_clap: float | None = None
         self._above_threshold = False
 
     def feed(self, peak: int, now: float) -> bool:
-        if peak <= self.release_threshold:
+        threshold = self.current_threshold
+        release_threshold = max(
+            int(self.minimum_threshold * 0.40), int(self.noise_floor * 1.8)
+        )
+        if peak <= release_threshold:
             self._above_threshold = False
+            self._update_noise_floor(peak)
             return False
-        if peak < self.threshold or self._above_threshold:
+        if peak < threshold:
+            self._update_noise_floor(peak)
+            return False
+        if self._above_threshold:
             return False
 
         self._above_threshold = True
@@ -36,6 +44,13 @@ class DoubleClapPattern:
         gap = now - self._last_clap
         self._last_clap = None if self.min_gap <= gap <= self.max_gap else now
         return self.min_gap <= gap <= self.max_gap
+
+    @property
+    def current_threshold(self) -> int:
+        return max(self.minimum_threshold, int(self.noise_floor * 4.2))
+
+    def _update_noise_floor(self, peak: int) -> None:
+        self.noise_floor = self.noise_floor * 0.96 + peak * 0.04
 
 
 class ClapDetector:
