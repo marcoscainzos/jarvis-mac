@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import importlib
+import sys
 import tempfile
+import traceback
 import wave
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,14 +29,7 @@ class LocalWhisperListener:
         self._model: Any = None
 
     def listen(self) -> str:
-        try:
-            import numpy as np
-            import sounddevice as sd
-            from faster_whisper import WhisperModel
-        except ImportError as error:
-            raise SpeechError(
-                "Falta el módulo de voz. Instálalo con: pip install -e '.[voice]'"
-            ) from error
+        np, sd, whisper_model = self._load_dependencies()
 
         try:
             recording = sd.rec(
@@ -58,7 +55,7 @@ class LocalWhisperListener:
 
         try:
             if self._model is None:
-                self._model = WhisperModel(
+                self._model = whisper_model(
                     self.model_name, device="auto", compute_type="int8"
                 )
             segments, _ = self._model.transcribe(
@@ -77,3 +74,34 @@ class LocalWhisperListener:
         if not transcript:
             raise SpeechError("No he entendido la frase. Inténtalo de nuevo.")
         return transcript
+
+    @staticmethod
+    def _load_dependencies() -> tuple[Any, Any, Any]:
+        loaded: dict[str, Any] = {}
+        for module_name in ("numpy", "sounddevice", "faster_whisper"):
+            try:
+                loaded[module_name] = importlib.import_module(module_name)
+            except Exception as error:
+                LocalWhisperListener._write_diagnostic(module_name, error)
+                raise SpeechError(
+                    f"No puedo cargar {module_name}: {error}. "
+                    "Se ha guardado el diagnóstico en ~/.jarvis/jarvis.log"
+                ) from error
+        return (
+            loaded["numpy"],
+            loaded["sounddevice"],
+            loaded["faster_whisper"].WhisperModel,
+        )
+
+    @staticmethod
+    def _write_diagnostic(module_name: str, error: Exception) -> None:
+        log_path = Path.home() / ".jarvis" / "jarvis.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        details = (
+            f"\n[{datetime.now().isoformat(timespec='seconds')}] "
+            f"voice import failed: {module_name}\n"
+            f"Python: {sys.executable}\n"
+            f"{''.join(traceback.format_exception(error))}"
+        )
+        with log_path.open("a", encoding="utf-8") as log_file:
+            log_file.write(details)

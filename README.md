@@ -89,6 +89,9 @@ Prueba órdenes como `hola Jarvis`, `me llamo Marcos`, `qué sabes de mí`,
 Jarvis ignora mayúsculas, acentos y signos de puntuación al interpretar las
 órdenes de voz, y reconoce variantes habituales de la transcripción de su nombre.
 
+Si una dependencia de voz falla, Jarvis muestra el componente exacto y guarda
+el diagnóstico técnico en `~/.jarvis/jarvis.log`.
+
 ## Pruebas
 
 Tras instalar pytest con `python -m pip install pytest`:
