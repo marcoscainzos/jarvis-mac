@@ -14,6 +14,14 @@ class FakeTools:
         self.calls.append(("volume", level))
         return True
 
+    def play_music(self, query: str) -> bool:
+        self.calls.append(("play_music", query))
+        return True
+
+    def search_web(self, query: str) -> bool:
+        self.calls.append(("search_web", query))
+        return True
+
     def create_reminder(self, title, due) -> bool:
         self.calls.append(("reminder", title, due))
         return True
@@ -82,6 +90,32 @@ def test_creates_reminder_and_calendar_event() -> None:
     assert tools.calls[1][0:2] == ("event", "entrenamiento")
 
 
+def test_natural_music_search_and_web_search() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    assistant.handle("pon música de Queen")
+    assistant.handle("búscame restaurantes italianos en Vigo")
+
+    assert tools.calls == [
+        ("play_music", "queen"),
+        ("search_web", "restaurantes italianos en vigo"),
+    ]
+
+
+def test_creates_reminders_in_minutes_and_days() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    assistant.handle("recuérdame sacar la ropa en 20 minutos")
+    assistant.handle("recuérdame llamar a Ana dentro de 2 días")
+
+    assert [call[0:2] for call in tools.calls] == [
+        ("reminder", "sacar la ropa"),
+        ("reminder", "llamar a Ana"),
+    ]
+
+
 def test_exit_command_ends_session() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("salir").should_exit is True
@@ -109,7 +143,7 @@ def test_rejects_unreasonably_long_name() -> None:
 def test_understands_voice_punctuation_and_accents() -> None:
     assistant = Assistant(lambda _: False)
 
-    assert "Puedo recordar" in assistant.handle("¿Qué puedes hacer?").message
+    assert "Puedo conversar" in assistant.handle("¿Qué puedes hacer?").message
     assert assistant.handle("¡Hola Jarvis!").message.startswith("Hola.")
     assert assistant.handle("¿Qué hora es?").message.startswith("Son las")
 

@@ -59,7 +59,12 @@ def main() -> None:
             super().__init__("J", title="◉", quit_button=None)
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             self.service = JarvisService(
-                Assistant(open_application, memory, OllamaAI(), MacOSComputerTools()),
+                Assistant(
+                    open_application,
+                    memory,
+                    OllamaAI(history_path=Path.home() / ".jarvis" / "conversation.db"),
+                    MacOSComputerTools(),
+                ),
                 LocalWhisperListener(
                     duration=8,
                     on_recorded=lambda: AppHelper.callAfter(

@@ -73,8 +73,9 @@ class Assistant:
             return Reply(f"Encantado, {name}. Lo recordaré en este dispositivo.")
         if normalized in {"ayuda", "que puedes hacer"}:
             return Reply(
-                "Puedo recordar tu nombre, decir la hora y abrir aplicaciones seguras. "
-                "Por ejemplo: me llamo Marcos, qué sabes de mí o abre Notas."
+                "Puedo conversar contigo recordando el contexto, abrir aplicaciones, "
+                "buscar en internet, controlar la música y el volumen, y crear "
+                "recordatorios o eventos. Puedes pedírmelo con tus propias palabras."
             )
         if normalized in {"que hora es", "hora"}:
             return Reply(f"Son las {datetime.now():%H:%M}.")
@@ -119,6 +120,27 @@ class Assistant:
                 return Reply(success)
             return Reply("No he podido controlar Música.")
 
+        requested_music = re.match(
+            r"(?:pon|reproduce|toca|quiero escuchar)\s+(?:la cancion\s+|musica de\s+)?(.+)",
+            normalized,
+        )
+        if requested_music and not normalized.startswith(("pon el volumen", "pon volumen")):
+            query = requested_music.group(1).strip()
+            if query not in {"musica", "algo de musica"}:
+                if self._computer_tools.play_music(query):
+                    return Reply(f"Reproduciendo {query}.")
+                return Reply(f"No he encontrado {query} en tu biblioteca de Música.")
+
+        web_search = re.match(
+            r"(?:busca|buscame|investiga|consulta)(?: en internet| en google)?\s+(.+)",
+            normalized,
+        )
+        if web_search:
+            query = web_search.group(1).strip()
+            if self._computer_tools.search_web(query):
+                return Reply(f"He abierto una búsqueda sobre {query}.")
+            return Reply("No he podido abrir la búsqueda.")
+
         volume = re.fullmatch(r"(?:pon )?(?:el )?volumen(?: al)? (\d{1,3})", normalized)
         if volume:
             level = max(0, min(100, int(volume.group(1))))
@@ -127,16 +149,27 @@ class Assistant:
             return Reply("No he podido cambiar el volumen.")
 
         reminder = re.search(
-            r"recu[eé]rdame\s+(.+?)\s+(?:dentro de|en)\s+(\d+)\s+horas?",
+            r"recu[eé]rdame\s+(.+?)\s+(?:dentro de|en)\s+(\d+)\s+"
+            r"(minutos?|horas?|d[ií]as?)",
             command,
             flags=re.IGNORECASE,
         )
         if reminder:
             title = reminder.group(1).strip(" .,!¿?¡")
-            hours = min(24 * 365, int(reminder.group(2)))
-            due = datetime.now() + timedelta(hours=hours)
+            amount = min(365 * 24 * 60, int(reminder.group(2)))
+            unit = self._normalize(reminder.group(3))
+            if unit.startswith("minuto"):
+                delay = timedelta(minutes=amount)
+                spoken_delay = f"{amount} minutos"
+            elif unit.startswith("dia"):
+                delay = timedelta(days=amount)
+                spoken_delay = f"{amount} días"
+            else:
+                delay = timedelta(hours=amount)
+                spoken_delay = f"{amount} horas"
+            due = datetime.now() + delay
             if self._computer_tools.create_reminder(title, due):
-                return Reply(f"Recordatorio creado para dentro de {hours} horas.")
+                return Reply(f"Recordatorio creado para dentro de {spoken_delay}.")
             return Reply("No he podido crear el recordatorio.")
 
         event = re.search(
