@@ -1,4 +1,4 @@
-from jarvis.audio import Listener, Speaker
+from jarvis.audio import Listener, Speaker, SpeechError, UnrecognizedSpeech
 
 
 class FakeListener:
@@ -18,3 +18,7 @@ def test_audio_adapters_are_replaceable() -> None:
     speaker.speak(listener.listen())
 
     assert speaker.last_message == "hola Jarvis"
+
+
+def test_unrecognized_speech_is_a_recoverable_voice_error() -> None:
+    assert issubclass(UnrecognizedSpeech, SpeechError)

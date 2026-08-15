@@ -138,7 +138,7 @@ class OllamaAI:
             item["content"] for item in self._messages[-6:]
             if item["role"] == "assistant"
         ]
-        if previous_answers and self._similar(answer, previous_answers[-1]) > 0.82:
+        if previous_answers and self._similar(answer, previous_answers[-1]) > 0.70:
             # No guardamos otra copia: limpiamos el anclaje y respondemos al turno actual.
             self._messages = [self._messages[0]]
             if self._history is not None:
@@ -171,7 +171,7 @@ class OllamaAI:
             if item["role"] == "assistant"
         ][-3:]
         return len(answers) == 3 and all(
-            self._similar(answers[index], answers[index + 1]) > 0.72
+            self._similar(answers[index], answers[index + 1]) > 0.65
             for index in range(2)
         )
 

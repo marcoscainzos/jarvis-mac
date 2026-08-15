@@ -17,3 +17,7 @@ class SpeechError(RuntimeError):
 
 class NoSpeechTimeout(SpeechError):
     """La continuación terminó porque el usuario guardó silencio."""
+
+
+class UnrecognizedSpeech(SpeechError):
+    """Entró audio, pero no se pudo obtener una frase; permite reintentar."""

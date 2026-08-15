@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from jarvis.audio import NoSpeechTimeout, SpeechError
+from jarvis.audio import NoSpeechTimeout, SpeechError, UnrecognizedSpeech
 
 
 class LocalWhisperListener:
@@ -91,7 +91,7 @@ class LocalWhisperListener:
         finally:
             audio_path.unlink(missing_ok=True)
         if not transcript:
-            raise SpeechError("No he entendido la frase. Inténtalo de nuevo.")
+            raise UnrecognizedSpeech("No he entendido esa frase. Sigo escuchando.")
         return transcript
 
     def _ensure_model(self, whisper_model: Any) -> None:

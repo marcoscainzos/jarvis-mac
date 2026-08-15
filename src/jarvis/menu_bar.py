@@ -7,7 +7,7 @@ from typing import Any
 
 from jarvis.app_service import JarvisService
 from jarvis.assistant import Assistant
-from jarvis.audio import NoSpeechTimeout, SpeechError
+from jarvis.audio import NoSpeechTimeout, SpeechError, UnrecognizedSpeech
 from jarvis.clap_detector import ClapDetector
 from jarvis.login_item import disable_login, enable_login, is_login_enabled
 from jarvis.local_ai import OllamaAI
@@ -212,6 +212,11 @@ def main() -> None:
                         )
                     except NoSpeechTimeout:
                         break
+                    except UnrecognizedSpeech as error:
+                        AppHelper.callAfter(self._apply_status, "speaking")
+                        self.service.speaker.speak(str(error))
+                        AppHelper.callAfter(self._begin_followup_listening)
+                        continue
                     except SpeechError as error:
                         self.service.speaker.speak(str(error))
                         break
