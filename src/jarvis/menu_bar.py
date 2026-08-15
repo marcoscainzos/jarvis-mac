@@ -14,6 +14,7 @@ from jarvis.local_ai import OllamaAI
 from jarvis.macos import MacOSComputerTools, open_application
 from jarvis.macos_speech import MacOSSpeaker
 from jarvis.memory import SQLiteMemory
+from jarvis.research import BackgroundResearcher, ResearchResult
 from jarvis.speech import LocalWhisperListener
 
 
@@ -58,12 +59,21 @@ def main() -> None:
         def __init__(self) -> None:
             super().__init__("J", title="◉", quit_button=None)
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
+            ai = OllamaAI(history_path=Path.home() / ".jarvis" / "conversation.db")
+            self.researcher = BackgroundResearcher(
+                ai.summarize_research,
+                on_complete=lambda result: AppHelper.callAfter(
+                    self._research_complete, result
+                ),
+                storage_path=Path.home() / ".jarvis" / "latest-research.json",
+            )
             self.service = JarvisService(
                 Assistant(
                     open_application,
                     memory,
-                    OllamaAI(history_path=Path.home() / ".jarvis" / "conversation.db"),
+                    ai,
                     MacOSComputerTools(),
+                    self.researcher,
                 ),
                 LocalWhisperListener(
                     duration=8,
@@ -124,6 +134,13 @@ def main() -> None:
             except Exception:
                 # La escucha mostrará el error concreto si el usuario la activa.
                 pass
+
+        def _research_complete(self, result: ResearchResult) -> None:
+            rumps.notification(
+                "Jarvis",
+                "Investigación terminada",
+                f"He comparado {len(result.sources)} fuentes sobre {result.query}.",
+            )
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):

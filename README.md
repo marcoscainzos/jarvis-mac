@@ -111,6 +111,21 @@ del menú seguirá funcionando aunque ese permiso todavía no esté concedido.
 La primera vez se descargará el modelo de Whisper y macOS solicitará permiso
 para usar el micrófono. Después, la transcripción se realiza en el dispositivo.
 
+## Investigación en segundo plano
+
+Jarvis puede buscar, leer y comparar varias fuentes mientras continúas hablando
+con él o utilizando el Mac:
+
+```text
+Investiga qué monitor me conviene para programar.
+¿Cómo va la investigación?
+¿Qué has encontrado?
+¿Qué fuentes usaste?
+```
+
+Solo se ejecuta una investigación a la vez. El último informe y sus enlaces se
+guardan localmente en `~/.jarvis/latest-research.json` y se restauran al iniciar.
+
 También puedes ejecutarlo sin instalarlo:
 
 ```bash

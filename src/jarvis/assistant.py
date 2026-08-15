@@ -9,6 +9,7 @@ import unicodedata
 from jarvis.memory import Memory, VolatileMemory
 from jarvis.local_ai import ConversationalAI
 from jarvis.computer_tools import ComputerTools
+from jarvis.research import BackgroundResearcher
 
 
 @dataclass(frozen=True)
@@ -26,11 +27,13 @@ class Assistant:
         memory: Memory | None = None,
         conversational_ai: ConversationalAI | None = None,
         computer_tools: ComputerTools | None = None,
+        researcher: BackgroundResearcher | None = None,
     ) -> None:
         self._open_app = open_app
         self._memory = memory or VolatileMemory()
         self._conversational_ai = conversational_ai
         self._computer_tools = computer_tools
+        self._researcher = researcher
         self._pending_plan: dict[str, str] | None = None
 
     def handle(self, command: str) -> Reply:
@@ -89,6 +92,9 @@ class Assistant:
             )
         if normalized in {"que hora es", "hora"}:
             return Reply(f"Son las {datetime.now():%H:%M}.")
+        research_reply = self._handle_research(command, normalized)
+        if research_reply is not None:
+            return research_reply
         action_reply = self._handle_computer_action(command, normalized)
         if action_reply is not None:
             return action_reply
@@ -116,6 +122,55 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_research(self, command: str, normalized: str) -> Reply | None:
+        if self._researcher is None:
+            return None
+        status_questions = {
+            "como va la investigacion", "que tal va la investigacion",
+            "estado de la investigacion", "has terminado", "ya has terminado",
+        }
+        if normalized in status_questions:
+            state, detail = self._researcher.status()
+            if state == "running":
+                return Reply(f"Sigo trabajando; ahora estoy {detail}.")
+            if state == "done":
+                return Reply("Ya he terminado. Pregúntame qué he encontrado para oír las conclusiones.")
+            if state == "error":
+                return Reply(f"La investigación se detuvo: {detail}.")
+            return Reply("No tengo ninguna investigación en curso.")
+        result_questions = {
+            "que has encontrado", "que encontraste", "dime el resultado",
+            "resultado de la investigacion", "conclusiones de la investigacion",
+        }
+        if normalized in result_questions:
+            result = self._researcher.result()
+            if result is None:
+                state, detail = self._researcher.status()
+                if state == "running":
+                    return Reply(f"Todavía estoy {detail}.")
+                return Reply("Aún no tengo una investigación terminada.")
+            return Reply(result.summary)
+        if normalized in {
+            "que fuentes usaste", "cuales son las fuentes", "fuentes de la investigacion",
+        }:
+            result = self._researcher.result()
+            if result is None:
+                return Reply("Aún no tengo fuentes de una investigación terminada.")
+            titles = ", ".join(title for title, _url in result.sources[:5])
+            return Reply(f"He consultado estas fuentes: {titles}.")
+        request = re.match(
+            r"(?:investiga|averigua|compara|haz una investigacion (?:sobre|de))\s+(.+)",
+            normalized,
+        )
+        if request:
+            query = request.group(1).strip()
+            if self._researcher.start(query):
+                return Reply(
+                    f"Empiezo a investigar {query} en segundo plano. Puedes seguir hablando conmigo o usando el Mac."
+                )
+            return Reply("Ya tengo una investigación en marcha. Pídeme su estado cuando quieras.")
+        return None
 
     def _handle_planned_action(self, command: str, normalized: str) -> Reply | None:
         if self._computer_tools is None or self._conversational_ai is None:

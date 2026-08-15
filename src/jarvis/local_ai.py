@@ -15,6 +15,10 @@ class ConversationalAI(Protocol):
 
     def plan_action(self, message: str) -> dict[str, str]: ...
 
+    def summarize_research(
+        self, query: str, sources: list[dict[str, str]]
+    ) -> str: ...
+
 
 class ConversationHistory:
     """Historial local persistente y acotado para conservar el contexto."""
@@ -254,6 +258,60 @@ class OllamaAI:
             else "documents",
             "new_name": str(plan.get("new_name", ""))[:150],
         }
+
+    def summarize_research(
+        self, query: str, sources: list[dict[str, str]]
+    ) -> str:
+        evidence = "\n\n".join(
+            f"FUENTE {index}: {source['title']}\nURL: {source['url']}\n"
+            f"CONTENIDO: {source['text']}"
+            for index, source in enumerate(sources, start=1)
+        )
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Eres el investigador de Jarvis. Compara las fuentes y responde en "
+                            "español con conclusiones concretas. No inventes datos; si las fuentes "
+                            "no bastan, dilo. Menciona los números de fuente que respaldan cada "
+                            "conclusión. Da primero una respuesta breve apta para voz."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Pregunta: {query}\n\n{evidence[:24000]}",
+                    },
+                ],
+                "stream": False,
+                "think": True,
+                "keep_alive": "30m",
+                "options": {
+                    "temperature": 0.3,
+                    "num_ctx": 8192,
+                    "num_predict": 420,
+                },
+            }
+        ).encode("utf-8")
+        request = Request(
+            self.endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=180) as response:
+                result = json.load(response)
+        except (OSError, URLError, TimeoutError) as error:
+            raise RuntimeError("La IA local no ha podido resumir las fuentes.") from error
+        answer = str(result.get("message", {}).get("content", "")).strip()
+        if not answer:
+            raise RuntimeError("La investigación terminó sin conclusiones.")
+        answer = re.sub(r"[*#_`]+", "", answer)
+        answer = re.sub(r"\[(.*?)\]\([^)]*\)", r"\1", answer)
+        return " ".join(answer.split())
 
     @staticmethod
     def _needs_reasoning(message: str) -> bool:
