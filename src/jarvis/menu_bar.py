@@ -16,6 +16,7 @@ from jarvis.macos_speech import MacOSSpeaker
 from jarvis.memory import SQLiteMemory
 from jarvis.research import BackgroundResearcher, ResearchResult
 from jarvis.speech import LocalWhisperListener
+from jarvis.task_engine import TaskEngine, TaskSnapshot
 
 
 def _acquire_single_instance() -> Any | None:
@@ -71,6 +72,12 @@ def main() -> None:
                     self._research_source, title, url, index, total
                 ),
             )
+            self.task_engine = TaskEngine(
+                self.researcher,
+                self.computer_tools,
+                Path.home() / ".jarvis" / "current-task.json",
+                on_update=lambda task: AppHelper.callAfter(self._task_update, task),
+            )
             self.service = JarvisService(
                 Assistant(
                     open_application,
@@ -78,6 +85,7 @@ def main() -> None:
                     ai,
                     self.computer_tools,
                     self.researcher,
+                    self.task_engine,
                 ),
                 LocalWhisperListener(
                     duration=8,
@@ -111,8 +119,12 @@ def main() -> None:
             self.login_item = rumps.MenuItem(
                 login_title, callback=self.toggle_login
             )
+            self.task_item = rumps.MenuItem("Tarea: ninguna")
+            self.cancel_task_item = rumps.MenuItem("Cancelar tarea", callback=self.cancel_task)
             self.menu = [
                 self.status,
+                self.task_item,
+                self.cancel_task_item,
                 None,
                 self.listen_item,
                 self.clap_item,
@@ -131,6 +143,18 @@ def main() -> None:
                 self.clap_detector.start()
             except Exception:
                 self.clap_item.title = "Dos palmadas: no disponibles"
+
+        def _task_update(self, task: TaskSnapshot) -> None:
+            labels = {"running": "en curso", "done": "terminada", "error": "con error", "cancelled": "cancelada", "idle": "ninguna"}
+            self.task_item.title = f"Tarea: {labels.get(task.state, task.state)} — {task.step[:55]}"
+            if task.state == "done":
+                rumps.notification("Jarvis", "Tarea terminada", f"Informe verificado: {task.output}")
+            elif task.state == "error":
+                rumps.notification("Jarvis", "Tarea detenida", task.error)
+
+        def cancel_task(self, _sender: Any) -> None:
+            if not self.task_engine.cancel():
+                rumps.notification("Jarvis", "Sin tarea activa", "No hay nada que cancelar.")
 
         def _warm_up_voice(self) -> None:
             try:

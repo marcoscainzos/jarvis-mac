@@ -149,6 +149,20 @@ class MacOSComputerTools:
             return None
         return path
 
+    def create_text_file(self, name: str, content: str, location: str) -> Path | None:
+        root = self._safe_root(location)
+        safe_name = Path(name.strip()).name[:120]
+        if root is None or not safe_name or safe_name in {".", ".."}:
+            return None
+        path = root / safe_name
+        if path.exists():
+            path = root / f"{path.stem} - nuevo{path.suffix}"
+        try:
+            path.write_text(content, encoding="utf-8")
+        except OSError:
+            return None
+        return path
+
     def move_file(self, query: str, source: str, destination: str) -> Path | None:
         path = self.find_file(query, source)
         destination_root = self._safe_root(destination)

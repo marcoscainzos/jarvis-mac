@@ -55,6 +55,10 @@ class FakeTools:
         self.calls.append(("create_folder", name, location))
         return Path("/tmp") / name
 
+    def create_text_file(self, name: str, content: str, location: str):
+        self.calls.append(("create_text_file", name, location))
+        return Path("/tmp") / name
+
     def move_file(self, query: str, source: str, destination: str):
         self.calls.append(("move_file", query, source, destination))
         return Path("/tmp") / query

@@ -10,6 +10,7 @@ from jarvis.memory import Memory, VolatileMemory
 from jarvis.local_ai import ConversationalAI
 from jarvis.computer_tools import ComputerTools
 from jarvis.research import BackgroundResearcher
+from jarvis.task_engine import TaskEngine
 
 
 @dataclass(frozen=True)
@@ -28,12 +29,14 @@ class Assistant:
         conversational_ai: ConversationalAI | None = None,
         computer_tools: ComputerTools | None = None,
         researcher: BackgroundResearcher | None = None,
+        task_engine: TaskEngine | None = None,
     ) -> None:
         self._open_app = open_app
         self._memory = memory or VolatileMemory()
         self._conversational_ai = conversational_ai
         self._computer_tools = computer_tools
         self._researcher = researcher
+        self._task_engine = task_engine
         self._pending_plan: dict[str, str] | None = None
 
     def handle(self, command: str) -> Reply:
@@ -97,6 +100,9 @@ class Assistant:
             )
         if normalized in {"que hora es", "hora"}:
             return Reply(f"Son las {datetime.now():%H:%M}.")
+        task_reply = self._handle_task(command, normalized)
+        if task_reply is not None:
+            return task_reply
         research_reply = self._handle_research(command, normalized)
         if research_reply is not None:
             return research_reply
@@ -154,6 +160,33 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_task(self, command: str, normalized: str) -> Reply | None:
+        if self._task_engine is None:
+            return None
+        if normalized in {"cancela la tarea", "deten la tarea", "para la tarea"}:
+            if self._task_engine.cancel():
+                return Reply("He cancelado la tarea. No ejecutaré los pasos pendientes.")
+            return Reply("No hay ninguna tarea activa que cancelar.")
+        if normalized in {"como va la tarea", "estado de la tarea", "que estas haciendo"}:
+            task = self._task_engine.status()
+            if task.state == "idle":
+                return Reply("No tengo ninguna tarea activa.")
+            if task.state == "done":
+                return Reply(f"La tarea terminó y verifiqué el resultado en {task.output}.")
+            if task.state == "error":
+                return Reply(f"La tarea se detuvo en {task.step}: {task.error}.")
+            return Reply(f"Estoy con {task.goal}; ahora mismo: {task.step}.")
+        wants_report = any(cue in normalized for cue in ("crea un informe", "crea un documento", "haz un informe", "guarda un informe"))
+        wants_research = any(cue in normalized for cue in ("investiga", "compara", "averigua"))
+        if not (wants_report and wants_research):
+            return None
+        location = "downloads" if "descargas" in normalized else "documents" if "documentos" in normalized else "desktop"
+        query = re.sub(r"(?:y |, )?(?:crea|haz|guarda) un (?:informe|documento).*$", "", normalized).strip()
+        query = re.sub(r"^(?:investiga|compara|averigua)\s+", "", query).strip()
+        if self._task_engine.start_research_report(query, location):
+            return Reply("He creado una tarea verificable. Investigaré, compararé las fuentes y guardaré el informe; puedes preguntarme cómo va o decir cancela la tarea.")
+        return Reply("Ya hay una tarea o investigación en marcha. Puedes preguntarme cómo va.")
 
     def _handle_screen(self, command: str, normalized: str) -> Reply | None:
         click = re.search(r"(?:pulsa|haz clic en|pincha en)\s+(?:el |la )?(.+)", normalized)
