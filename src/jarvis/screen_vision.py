@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import subprocess
 from typing import Any
+import unicodedata
 
 
 class ScreenVision:
@@ -27,10 +28,48 @@ class ScreenVision:
         path = self.capture_active_window()
         if path is None:
             return None, ""
-        return path, self.read_text(path)
+        text = self.read_text(path)
+        path.unlink(missing_ok=True)
+        return path, text
+
+    def click_visible_text(self, requested_text: str) -> bool:
+        """Pulsa texto visible solo cuando el usuario nombra el elemento explícitamente."""
+        window = self._front_window()
+        if window is None:
+            return False
+        path = self.capture_active_window()
+        if path is None:
+            return False
+        try:
+            observations = self._recognize(path)
+            needle = self._normalize(requested_text)
+            matches = [
+                item for item in observations
+                if needle in self._normalize(item[0])
+                or self._normalize(item[0]) in needle
+            ]
+            if not matches:
+                return False
+            _label, box = min(matches, key=lambda item: len(item[0]))
+            bounds = window["kCGWindowBounds"]
+            x = float(bounds["X"]) + (box.origin.x + box.size.width / 2) * float(bounds["Width"])
+            y = float(bounds["Y"]) + (1 - box.origin.y - box.size.height / 2) * float(bounds["Height"])
+            import Quartz
+            down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (x, y), Quartz.kCGMouseButtonLeft)
+            up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (x, y), Quartz.kCGMouseButtonLeft)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+            return True
+        finally:
+            path.unlink(missing_ok=True)
 
     @staticmethod
     def _front_window_id() -> int | None:
+        window = ScreenVision._front_window()
+        return int(window["kCGWindowNumber"]) if window is not None else None
+
+    @staticmethod
+    def _front_window() -> dict[str, Any] | None:
         import Quartz
 
         options = (
@@ -49,16 +88,20 @@ class ScreenVision:
             bounds = window.get("kCGWindowBounds", {})
             if bounds.get("Width", 0) < 150 or bounds.get("Height", 0) < 100:
                 continue
-            return int(window["kCGWindowNumber"])
+            return window
         return None
 
     @staticmethod
     def read_text(path: Path) -> str:
+        return "\n".join(text for text, _box in ScreenVision._recognize(path))[:12_000]
+
+    @staticmethod
+    def _recognize(path: Path) -> list[tuple[str, Any]]:
         try:
             import Vision
             from Foundation import NSURL
         except ImportError:
-            return ""
+            return []
 
         request = Vision.VNRecognizeTextRequest.alloc().init()
         request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
@@ -69,10 +112,15 @@ class ScreenVision:
         )
         success, _error = handler.performRequests_error_([request], None)
         if not success:
-            return ""
-        lines: list[str] = []
+            return []
+        lines: list[tuple[str, Any]] = []
         for observation in request.results() or []:
             candidates = observation.topCandidates_(1)
             if candidates:
-                lines.append(str(candidates[0].string()))
-        return "\n".join(lines)[:12_000]
+                lines.append((str(candidates[0].string()), observation.boundingBox()))
+        return lines
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        value = unicodedata.normalize("NFD", text.casefold())
+        return "".join(character for character in value if unicodedata.category(character) != "Mn").strip()

@@ -156,6 +156,17 @@ class Assistant:
         return Reply("Todavía no conozco esa orden.")
 
     def _handle_screen(self, command: str, normalized: str) -> Reply | None:
+        click = re.search(r"(?:pulsa|haz clic en|pincha en)\s+(?:el |la )?(.+)", normalized)
+        if click:
+            target = click.group(1).strip()
+            sensitive = ("comprar", "pagar", "enviar", "borrar", "eliminar", "contrasena", "contraseña")
+            if any(word in target for word in sensitive):
+                return Reply("No pulsaré controles de compra, pago, envío, borrado o contraseñas.")
+            if self._computer_tools is None:
+                return Reply("No tengo acceso visual a esa ventana.")
+            if self._computer_tools.click_visible_text(target):
+                return Reply(f"He pulsado {target}.")
+            return Reply(f"No encuentro un elemento visible llamado {target}.")
         cues = (
             "que hay en pantalla", "que ves", "mira mi pantalla", "mira la pantalla",
             "lee la pantalla", "analiza la pantalla", "analiza esta ventana",
@@ -166,13 +177,16 @@ class Assistant:
             return None
         if self._computer_tools is None:
             return Reply("No tengo acceso a la ventana activa.")
+        if normalized.startswith(("captura", "haz una captura")):
+            path = self._computer_tools.capture_active_window()
+            if path is None:
+                return Reply("No he podido guardar la captura. Revisa el permiso de Grabación de pantalla.")
+            return Reply(f"He guardado la captura en Imágenes, dentro de Jarvis, como {path.name}.")
         path, visible_text = self._computer_tools.read_active_window()
         if path is None:
             return Reply(
                 "No he podido capturar la ventana. Activa Jarvis en Privacidad y seguridad, Grabación de pantalla."
             )
-        if normalized.startswith(("captura", "haz una captura")):
-            return Reply(f"He guardado la captura en Imágenes, dentro de Jarvis, como {path.name}.")
         if not visible_text.strip():
             return Reply(
                 "He capturado la ventana, pero no puedo leer texto. Comprueba el permiso de Grabación de pantalla."

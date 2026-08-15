@@ -54,6 +54,12 @@ class MacOSComputerTools:
     def read_active_window(self) -> tuple[Path | None, str]:
         return self._screen_vision.read_active_window()
 
+    def capture_active_window(self) -> Path | None:
+        return self._screen_vision.capture_active_window()
+
+    def click_visible_text(self, text: str) -> bool:
+        return self._screen_vision.click_visible_text(text)
+
     def control_music(self, action: str) -> bool:
         commands = {
             "play_pause": 'tell application "Music" to playpause',

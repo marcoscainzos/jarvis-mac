@@ -27,6 +27,14 @@ class FakeTools:
         self.calls.append(("read_active_window",))
         return Path("/tmp/ventana.png"), "Error: no se encuentra el módulo principal"
 
+    def capture_active_window(self):
+        self.calls.append(("capture_active_window",))
+        return Path("/tmp/captura.png")
+
+    def click_visible_text(self, text: str) -> bool:
+        self.calls.append(("click_visible_text", text))
+        return True
+
     def list_files(self, location: str) -> list[str]:
         self.calls.append(("list_files", location))
         return ["informe.pdf", "foto.png"]
@@ -270,3 +278,23 @@ def test_reads_and_explains_active_window() -> None:
 
     assert tools.calls == [("read_active_window",)]
     assert "error de módulo" in reply.message
+
+
+def test_clicks_named_safe_visual_control() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    reply = assistant.handle("pulsa Aceptar")
+
+    assert tools.calls == [("click_visible_text", "aceptar")]
+    assert reply.message == "He pulsado aceptar."
+
+
+def test_blocks_sensitive_visual_control() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    reply = assistant.handle("pulsa comprar")
+
+    assert tools.calls == []
+    assert "No pulsaré" in reply.message
