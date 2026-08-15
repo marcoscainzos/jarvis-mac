@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from collections.abc import Callable
+from statistics import median
 from typing import Any
 
 
@@ -10,9 +12,9 @@ class DoubleClapPattern:
 
     def __init__(
         self,
-        threshold: int = 900,
-        min_gap: float = 0.12,
-        max_gap: float = 1.00,
+        threshold: int = 700,
+        min_gap: float = 0.10,
+        max_gap: float = 1.20,
     ) -> None:
         self.minimum_threshold = threshold
         self.noise_floor = max(5.0, threshold / 10)
@@ -20,6 +22,7 @@ class DoubleClapPattern:
         self.max_gap = max_gap
         self._last_clap: float | None = None
         self._above_threshold = False
+        self._ambient_peaks: deque[int] = deque(maxlen=80)
 
     def feed(self, peak: int, now: float) -> bool:
         threshold = self.current_threshold
@@ -50,11 +53,20 @@ class DoubleClapPattern:
         return max(self.minimum_threshold, int(self.noise_floor * 4.2))
 
     def _update_noise_floor(self, peak: int) -> None:
-        self.noise_floor = self.noise_floor * 0.96 + peak * 0.04
+        # Solo aprende valores ambientales; voz y golpes no deben volverlo sordo.
+        if peak <= self.minimum_threshold * 0.75:
+            self._ambient_peaks.append(peak)
+        if len(self._ambient_peaks) >= 8:
+            self.noise_floor = max(
+                5.0,
+                float(median(self._ambient_peaks)),
+            )
 
     def reset(self) -> None:
         self._last_clap = None
         self._above_threshold = False
+        self._ambient_peaks.clear()
+        self.noise_floor = max(5.0, self.minimum_threshold / 10)
 
 
 class ClapDetector:
