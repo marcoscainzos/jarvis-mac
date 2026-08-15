@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 from datetime import datetime
 from pathlib import Path
 import re
@@ -116,6 +117,13 @@ class MacOSComputerTools:
         result = subprocess.run(["open", str(path)], check=False, capture_output=True)
         return path if result.returncode == 0 else None
 
+    def open_path(self, path: Path) -> bool:
+        if not self._is_managed_path(path) or not path.exists():
+            return False
+        return subprocess.run(
+            ["open", str(path)], check=False, capture_output=True
+        ).returncode == 0
+
     def create_folder(self, name: str, location: str) -> Path | None:
         root = self._safe_root(location)
         safe_name = Path(name.strip()).name[:100]
@@ -128,6 +136,43 @@ class MacOSComputerTools:
             return None
         return path
 
+    def move_file(self, query: str, source: str, destination: str) -> Path | None:
+        path = self.find_file(query, source)
+        destination_root = self._safe_root(destination)
+        if path is None or destination_root is None:
+            return None
+        target = destination_root / path.name
+        if target.exists():
+            return None
+        try:
+            return Path(shutil.move(str(path), str(target)))
+        except OSError:
+            return None
+
+    def rename_file(self, query: str, location: str, new_name: str) -> Path | None:
+        path = self.find_file(query, location)
+        safe_name = Path(new_name.strip()).name[:150]
+        if path is None or not safe_name or safe_name in {".", ".."}:
+            return None
+        target = path.with_name(safe_name)
+        if target.exists():
+            return None
+        try:
+            return path.rename(target)
+        except OSError:
+            return None
+
+    def trash_file(self, query: str, location: str) -> bool:
+        path = self.find_file(query, location)
+        if path is None:
+            return False
+        script = """
+on run argv
+    tell application "Finder" to delete POSIX file (item 1 of argv)
+end run
+"""
+        return self._osascript(script, str(path))
+
     @staticmethod
     def _safe_root(location: str) -> Path | None:
         roots = {
@@ -136,6 +181,17 @@ class MacOSComputerTools:
             "documents": Path.home() / "Documents",
         }
         return roots.get(location)
+
+    @classmethod
+    def _is_managed_path(cls, path: Path) -> bool:
+        try:
+            resolved = path.resolve()
+            return any(
+                resolved == root.resolve() or root.resolve() in resolved.parents
+                for root in filter(None, (cls._safe_root(name) for name in ("desktop", "downloads", "documents")))
+            )
+        except OSError:
+            return False
 
     def search_web(self, query: str) -> bool:
         safe_query = query.strip()[:500]

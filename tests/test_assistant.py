@@ -35,9 +35,25 @@ class FakeTools:
         self.calls.append(("open_file", query, location))
         return Path("/tmp/informe.pdf")
 
+    def open_path(self, path: Path) -> bool:
+        self.calls.append(("open_path", path))
+        return True
+
     def create_folder(self, name: str, location: str):
         self.calls.append(("create_folder", name, location))
         return Path("/tmp") / name
+
+    def move_file(self, query: str, source: str, destination: str):
+        self.calls.append(("move_file", query, source, destination))
+        return Path("/tmp") / query
+
+    def rename_file(self, query: str, location: str, new_name: str):
+        self.calls.append(("rename_file", query, location, new_name))
+        return Path("/tmp") / new_name
+
+    def trash_file(self, query: str, location: str) -> bool:
+        self.calls.append(("trash_file", query, location))
+        return True
 
     def create_reminder(self, title, due) -> bool:
         self.calls.append(("reminder", title, due))
@@ -155,17 +171,34 @@ def test_ai_plans_natural_file_action() -> None:
     assert reply.message == "Aquí tienes informe.pdf."
 
 
-def test_blocks_critical_planned_actions() -> None:
+def test_requires_confirmation_before_trashing_file() -> None:
     tools = FakeTools()
     ai = FakePlannerAI(
-        {"action": "find_file", "target": "todo", "location": "documents"}
+        {"action": "trash_file", "target": "informe", "location": "documents"}
     )
     assistant = Assistant(lambda _: False, conversational_ai=ai, computer_tools=tools)
 
-    reply = assistant.handle("borra todos los archivos de documentos")
+    reply = assistant.handle("envía el informe de documentos a la papelera")
 
     assert tools.calls == []
-    assert "seguridad" in reply.message
+    assert "confirma" in reply.message
+    confirmed = assistant.handle("sí, confirma")
+    assert tools.calls == [("trash_file", "informe", "documents")]
+    assert "Papelera" in confirmed.message
+
+
+def test_can_cancel_sensitive_action() -> None:
+    tools = FakeTools()
+    ai = FakePlannerAI(
+        {"action": "move_file", "target": "informe", "location": "downloads", "destination": "documents"}
+    )
+    assistant = Assistant(lambda _: False, conversational_ai=ai, computer_tools=tools)
+
+    assistant.handle("mueve el informe a documentos")
+    reply = assistant.handle("cancela")
+
+    assert tools.calls == []
+    assert "cancelada" in reply.message
 
 
 def test_exit_command_ends_session() -> None:

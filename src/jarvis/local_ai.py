@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sqlite3
 from typing import Protocol
 import unicodedata
@@ -138,13 +139,16 @@ class OllamaAI:
         system = (
             "Convierte la petición en UNA acción segura de ordenador. Devuelve solo JSON. "
             "Acciones: open_app, web_search, youtube, list_files, find_file, open_file, "
-            "create_folder o none. target contiene la aplicación, consulta, archivo o carpeta. "
+            "create_folder, move_file, rename_file, trash_file o none. target contiene la "
+            "aplicación, consulta, archivo o carpeta. destination es la carpeta de destino para "
+            "move_file y new_name es el nombre completo nuevo para rename_file. "
             "location solo puede ser desktop, downloads o documents; 'bajé', 'descargué' y "
             "'lo último que bajé' significan downloads. Usa list_files solo para preguntar qué "
             "hay o qué es reciente; usa find_file para localizar y open_file para abrir. "
             "Si no se indica ubicación usa documents. "
-            "Nunca planifiques borrar, sobrescribir, instalar, ejecutar comandos, cambiar permisos, "
-            "usar contraseñas, enviar mensajes o comprar: en esos casos usa none."
+            "trash_file significa enviar a la Papelera, nunca borrar definitivamente. Nunca "
+            "planifiques sobrescribir, instalar, ejecutar comandos, cambiar permisos, usar "
+            "contraseñas, enviar mensajes o comprar: en esos casos usa none."
         )
         schema = {
             "type": "object",
@@ -153,7 +157,8 @@ class OllamaAI:
                     "type": "string",
                     "enum": [
                         "open_app", "web_search", "youtube", "list_files",
-                        "find_file", "open_file", "create_folder", "none",
+                        "find_file", "open_file", "create_folder", "move_file",
+                        "rename_file", "trash_file", "none",
                     ],
                 },
                 "target": {"type": "string"},
@@ -161,8 +166,13 @@ class OllamaAI:
                     "type": "string",
                     "enum": ["desktop", "downloads", "documents"],
                 },
+                "destination": {
+                    "type": "string",
+                    "enum": ["desktop", "downloads", "documents"],
+                },
+                "new_name": {"type": "string"},
             },
-            "required": ["action", "target", "location"],
+            "required": ["action", "target", "location", "destination", "new_name"],
         }
         payload = json.dumps(
             {
@@ -175,7 +185,7 @@ class OllamaAI:
                     },
                     {
                         "role": "assistant",
-                        "content": json.dumps({"action": "list_files", "target": "", "location": "downloads"}),
+                        "content": json.dumps({"action": "list_files", "target": "", "location": "downloads", "destination": "documents", "new_name": ""}),
                     },
                     {
                         "role": "user",
@@ -183,7 +193,7 @@ class OllamaAI:
                     },
                     {
                         "role": "assistant",
-                        "content": json.dumps({"action": "find_file", "target": "examen pdf", "location": "desktop"}),
+                        "content": json.dumps({"action": "find_file", "target": "examen pdf", "location": "desktop", "destination": "documents", "new_name": ""}),
                     },
                     {"role": "user", "content": message},
                 ],
@@ -209,7 +219,7 @@ class OllamaAI:
             return {"action": "none", "target": "", "location": "documents"}
         allowed = {
             "open_app", "web_search", "youtube", "list_files", "find_file",
-            "open_file", "create_folder", "none",
+            "open_file", "create_folder", "move_file", "rename_file", "trash_file", "none",
         }
         action = str(plan.get("action", "none"))
         location = str(plan.get("location", "documents"))
@@ -223,10 +233,26 @@ class OllamaAI:
             location = "downloads"
         elif "documentos" in plain_message:
             location = "documents"
+        target = str(plan.get("target", ""))[:500].strip()
+        target = re.sub(
+            r"\s+(?:de|del|en)\s+(?:mi\s+)?(?:escritorio|descargas|documentos)\b",
+            "",
+            target,
+            flags=re.IGNORECASE,
+        ).strip()
+        words = target.split()
+        target = " ".join(
+            word for index, word in enumerate(words)
+            if index == 0 or word.casefold() != words[index - 1].casefold()
+        )
         return {
             "action": action if action in allowed else "none",
-            "target": str(plan.get("target", ""))[:500],
+            "target": target,
             "location": location if location in {"desktop", "downloads", "documents"} else "documents",
+            "destination": str(plan.get("destination", "documents"))
+            if str(plan.get("destination", "documents")) in {"desktop", "downloads", "documents"}
+            else "documents",
+            "new_name": str(plan.get("new_name", ""))[:150],
         }
 
     @staticmethod

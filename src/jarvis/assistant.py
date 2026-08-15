@@ -31,12 +31,21 @@ class Assistant:
         self._memory = memory or VolatileMemory()
         self._conversational_ai = conversational_ai
         self._computer_tools = computer_tools
+        self._pending_plan: dict[str, str] | None = None
 
     def handle(self, command: str) -> Reply:
         normalized = self._normalize(command)
 
         if not normalized:
             return Reply("No he oído ninguna orden.")
+        if self._pending_plan is not None:
+            if normalized in {"si", "sí", "confirma", "si confirma", "adelante", "hazlo"}:
+                plan = self._pending_plan
+                self._pending_plan = None
+                return self._execute_sensitive_plan(plan)
+            if normalized in {"no", "cancela", "cancelar", "dejalo", "déjalo"}:
+                self._pending_plan = None
+                return Reply("De acuerdo, operación cancelada.")
         if normalized in {
             "salir",
             "adios",
@@ -74,15 +83,20 @@ class Assistant:
         if normalized in {"ayuda", "que puedes hacer"}:
             return Reply(
                 "Puedo conversar contigo recordando el contexto, abrir aplicaciones, "
-                "buscar en internet, controlar la música y el volumen, y crear "
-                "recordatorios o eventos. Puedes pedírmelo con tus propias palabras."
+                "buscar en internet, controlar la música, gestionar archivos y crear "
+                "recordatorios o eventos. Puedo entender referencias como ábrelo y pediré "
+                "confirmación antes de mover, renombrar o enviar algo a la Papelera."
             )
         if normalized in {"que hora es", "hora"}:
             return Reply(f"Son las {datetime.now():%H:%M}.")
         action_reply = self._handle_computer_action(command, normalized)
         if action_reply is not None:
             return action_reply
-        if normalized.startswith("abre "):
+        file_opening = any(
+            cue in normalized
+            for cue in ("archivo", "documento", "pdf", "carpeta", "abrelo", "abrela")
+        )
+        if normalized.startswith("abre ") and not file_opening:
             app_name = command.strip()[5:].strip()
             if not app_name:
                 return Reply("Dime qué aplicación quieres abrir.")
@@ -107,9 +121,9 @@ class Assistant:
         if self._computer_tools is None or self._conversational_ai is None:
             return None
         blocked = (
-            "borra", "elimina", "formatea", "contrasena", "contraseña", "password",
+            "formatea", "contrasena", "contraseña", "password",
             "permiso", "instala", "desinstala", "terminal", "ejecuta comando",
-            "envia", "envía", "compra", "paga",
+            "compra", "paga",
         )
         if any(cue in normalized for cue in blocked):
             return Reply(
@@ -118,7 +132,8 @@ class Assistant:
         action_cues = (
             "abre", "inicia", "lanza", "busca", "encuentra", "localiza", "muestra",
             "ensena", "enseña", "ensename", "muéstrame", "que hay", "qué hay",
-            "baje", "descargue", "crea una carpeta", "nueva carpeta",
+            "baje", "descargue", "crea una carpeta", "nueva carpeta", "mueve",
+            "traslada", "renombra", "cambia el nombre", "papelera", "borra", "elimina",
             "youtube", "safari", "internet", "escritorio", "descargas", "documentos",
         )
         if not any(cue in normalized for cue in action_cues):
@@ -130,6 +145,12 @@ class Assistant:
         action = plan.get("action", "none")
         target = plan.get("target", "").strip()
         location = plan.get("location", "documents")
+        if normalized in {"abrelo", "abrela", "muestralo", "muestrala"}:
+            target = self._memory.get("last_file_name") or target
+            location = self._memory.get("last_file_location") or location
+        if self._normalize(target) in {"lo", "la", "eso", "ese archivo", "esa carpeta"}:
+            target = self._memory.get("last_file_name") or ""
+            location = self._memory.get("last_file_location") or location
         place_names = {
             "desktop": "el Escritorio",
             "downloads": "Descargas",
@@ -159,18 +180,65 @@ class Assistant:
             path = self._computer_tools.find_file(target, location)
             if path is None:
                 return Reply(f"No encuentro {target} en {place}.")
+            self._remember_file(path, location)
             return Reply(f"He encontrado {path.name} en {place}.")
         if action == "open_file" and target:
             path = self._computer_tools.open_file(target, location)
             if path is None:
                 return Reply(f"No encuentro {target} en {place}.")
+            self._remember_file(path, location)
             return Reply(f"Aquí tienes {path.name}.")
         if action == "create_folder" and target:
             path = self._computer_tools.create_folder(target, location)
             if path is None:
                 return Reply(f"No he podido crear esa carpeta en {place}.")
             return Reply(f"Carpeta {path.name} creada en {place}.")
+        if action in {"move_file", "rename_file", "trash_file"} and target:
+            plan["target"] = target
+            self._pending_plan = plan
+            descriptions = {
+                "move_file": f"mover {target}",
+                "rename_file": f"renombrar {target} como {plan.get('new_name', '')}",
+                "trash_file": f"enviar {target} a la Papelera",
+            }
+            return Reply(
+                f"Voy a {descriptions[action]}. Di confirma para continuar o cancela para detenerme."
+            )
         return None
+
+    def _execute_sensitive_plan(self, plan: dict[str, str]) -> Reply:
+        if self._computer_tools is None:
+            return Reply("La herramienta ya no está disponible.")
+        action = plan.get("action", "none")
+        target = plan.get("target", "")
+        location = plan.get("location", "documents")
+        if action == "move_file":
+            destination = plan.get("destination", "documents")
+            path = self._computer_tools.move_file(target, location, destination)
+            if path is not None:
+                self._remember_file(path, destination)
+                return Reply(f"He movido {path.name} correctamente.")
+            return Reply("No he podido moverlo; puede que ya exista otro archivo con ese nombre.")
+        if action == "rename_file":
+            new_name = plan.get("new_name", "")
+            path = self._computer_tools.rename_file(target, location, new_name)
+            if path is not None:
+                self._remember_file(path, location)
+                return Reply(f"Listo, ahora se llama {path.name}.")
+            return Reply("No he podido cambiar el nombre sin sobrescribir otro archivo.")
+        if action == "trash_file":
+            if self._computer_tools.trash_file(target, location):
+                self._memory.forget("last_file_name")
+                self._memory.forget("last_file_location")
+                return Reply("He enviado el archivo a la Papelera; todavía puedes recuperarlo.")
+            return Reply("No he podido enviar ese archivo a la Papelera.")
+        return Reply("La operación pendiente ya no es válida.")
+
+    def _remember_file(self, path: object, location: str) -> None:
+        name = getattr(path, "name", "")
+        if name:
+            self._memory.set("last_file_name", str(name))
+            self._memory.set("last_file_location", location)
 
     def _handle_computer_action(
         self, command: str, normalized: str
