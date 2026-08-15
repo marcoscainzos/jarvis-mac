@@ -110,13 +110,15 @@ class LocalWhisperListener:
         block_seconds = 0.05
         block_frames = int(self.sample_rate * block_seconds)
         max_speech_blocks = max(1, int(self.duration / block_seconds))
-        silence_blocks_needed = int(0.45 / block_seconds)
+        silence_blocks_needed = int(0.80 / block_seconds)
+        minimum_voiced_blocks = int(0.50 / block_seconds)
         noise_floor = 30.0
         speech_started = False
         silent_blocks = 0
         pre_roll: deque[Any] = deque(maxlen=5)
         chunks: list[Any] = []
         speech_blocks = 0
+        voiced_blocks = 0
         waiting_blocks = 0
 
         with sd.InputStream(
@@ -137,6 +139,7 @@ class LocalWhisperListener:
                     speech_started = True
                     chunks.append(block.copy())
                     speech_blocks += 1
+                    voiced_blocks += 1
                     silent_blocks = 0
                 else:
                     if not speech_started:
@@ -153,7 +156,10 @@ class LocalWhisperListener:
                         speech_blocks += 1
                         silent_blocks += 1
                 if speech_started and (
-                    silent_blocks >= silence_blocks_needed
+                    (
+                        voiced_blocks >= minimum_voiced_blocks
+                        and silent_blocks >= silence_blocks_needed
+                    )
                     or speech_blocks >= max_speech_blocks
                 ):
                     break
