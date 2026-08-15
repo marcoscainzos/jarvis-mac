@@ -16,6 +16,8 @@ class ConversationalAI(Protocol):
 
     def plan_action(self, message: str) -> dict[str, str]: ...
 
+    def understand(self, message: str, context: dict[str, str]) -> dict[str, str]: ...
+
     def summarize_research(
         self, query: str, sources: list[dict[str, str]]
     ) -> str: ...
@@ -68,10 +70,14 @@ class OllamaAI:
     def __init__(
         self,
         model: str = "qwen3:1.7b",
+        reasoning_model: str = "qwen3.5:4b",
+        action_model: str = "qwen3:1.7b",
         endpoint: str = "http://127.0.0.1:11434/api/chat",
         history_path: Path | None = None,
     ) -> None:
         self.model = model
+        self.reasoning_model = reasoning_model
+        self.action_model = action_model
         self.endpoint = endpoint
         self._history = ConversationHistory(history_path) if history_path else None
         self._messages: list[dict[str, str]] = [
@@ -80,7 +86,7 @@ class OllamaAI:
                 "content": (
                     "Eres Jarvis, un asistente personal útil, prudente y conversacional. "
                     "Responde siempre en español claro. Como la respuesta se leerá en voz "
-                    "alta, responde normalmente en un máximo de tres frases y no uses markdown. "
+                    "alta, responde normalmente en un máximo de dos frases breves y no uses markdown. "
                     "Dirígete al usuario como señor de vez en cuando, pero no en todas las "
                     "respuestas. Mantén un tono masculino, elegante, calmado y profesional. "
                     "Recuerda lo dicho anteriormente, responde al significado de la última "
@@ -105,15 +111,15 @@ class OllamaAI:
         messages = [*self._messages, {"role": "user", "content": message}]
         payload = json.dumps(
             {
-                "model": self.model,
+                "model": self.reasoning_model if self._needs_reasoning(message) else self.model,
                 "messages": messages,
                 "stream": False,
-                "think": self._needs_reasoning(message),
+                "think": False,
                 "keep_alive": "30m",
                 "options": {
                     "temperature": 0.6,
                     "num_ctx": 4096,
-                    "num_predict": 160,
+                    "num_predict": 100,
                 },
             }
         ).encode("utf-8")
@@ -164,6 +170,89 @@ class OllamaAI:
         conversation = self._messages[1:]
         self._messages = [self._messages[0], *conversation[-20:]]
         return answer
+
+    def understand(self, message: str, context: dict[str, str]) -> dict[str, str]:
+        """Distingue conversación y acciones usando el historial, no frases rígidas."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["conversation", "action", "fallback"]},
+                "response": {"type": "string"},
+                "action": {"type": "string", "enum": ["open_app", "web_search", "youtube", "list_files", "find_file", "open_file", "create_folder", "move_file", "rename_file", "trash_file", "none"]},
+                "target": {"type": "string"},
+                "location": {"type": "string", "enum": ["desktop", "downloads", "documents"]},
+                "destination": {"type": "string", "enum": ["desktop", "downloads", "documents"]},
+                "new_name": {"type": "string"},
+            },
+            "required": ["kind", "response", "action", "target", "location", "destination", "new_name"],
+        }
+        system = (
+            "Comprende la intención real de la última frase dentro de la conversación. "
+            "Devuelve kind=action solo si el usuario pide explícitamente hacer algo en su "
+            "ordenador: abrir, buscar, reproducir, mostrar, crear, mover, renombrar o borrar. "
+            "Usa kind=fallback para órdenes especiales como pantalla, investigación, tareas, "
+            "calendario, recordatorios, volumen, dormir o salir. En cualquier otro caso usa "
+            "kind=conversation y redacta en response una contestación natural en español, "
+            "breve para voz, que responda al significado y contexto; no uses frases de plantilla. "
+            "Para kind=action completa action con open_app, web_search, youtube, list_files, "
+            "find_file, open_file, create_folder, move_file, rename_file o trash_file; target es "
+            "el objeto concreto y location/destination solo desktop, downloads o documents. "
+            "No afirmes que realizaste una acción. Contexto local: " + json.dumps(context, ensure_ascii=False)
+        )
+        messages = [
+            {"role": "system", "content": system},
+            *self._messages[-10:],
+            {"role": "user", "content": message},
+        ]
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": messages,
+                "format": schema,
+                "stream": False,
+                "think": False,
+                "keep_alive": "30m",
+                "options": {"temperature": 0.25, "num_ctx": 4096, "num_predict": 140},
+            }
+        ).encode("utf-8")
+        request = Request(self.endpoint, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(request, timeout=60) as response:
+                result = json.load(response)
+            understood = json.loads(result.get("message", {}).get("content", "{}"))
+        except (OSError, URLError, TimeoutError, ValueError, TypeError):
+            return {"kind": "fallback", "response": ""}
+        kind = str(understood.get("kind", "fallback"))
+        response_text = str(understood.get("response", "")).strip()[:1000]
+        if kind == "conversation" and response_text:
+            self._store_exchange(message, response_text)
+            return {"kind": kind, "response": response_text}
+        if kind == "action":
+            return {
+                "kind": "action", "response": "",
+                "action": str(understood.get("action", "none")),
+                "target": str(understood.get("target", ""))[:500],
+                "location": str(understood.get("location", "documents")),
+                "destination": str(understood.get("destination", "documents")),
+                "new_name": str(understood.get("new_name", ""))[:150],
+            }
+        return {"kind": "fallback", "response": ""}
+
+    def warm_up(self) -> None:
+        payload = json.dumps({"model": self.model, "prompt": "", "keep_alive": "30m"}).encode("utf-8")
+        endpoint = self.endpoint.rsplit("/", 1)[0] + "/generate"
+        try:
+            with urlopen(Request(endpoint, data=payload, headers={"Content-Type": "application/json"}, method="POST"), timeout=90):
+                pass
+        except (OSError, URLError, TimeoutError):
+            pass
+
+    def _store_exchange(self, message: str, answer: str) -> None:
+        self._messages.extend([{"role": "user", "content": message}, {"role": "assistant", "content": answer}])
+        if self._history is not None:
+            self._history.append("user", message)
+            self._history.append("assistant", answer)
+        self._messages = [self._messages[0], *self._messages[1:][-20:]]
 
     def analyze_screen(self, visible_text: str, question: str) -> str:
         """Interpreta OCR local sin incorporar su contenido al historial permanente."""
@@ -261,7 +350,7 @@ class OllamaAI:
         }
         payload = json.dumps(
             {
-                "model": self.model,
+                "model": self.action_model,
                 "messages": [
                     {"role": "system", "content": system},
                     {
@@ -350,7 +439,7 @@ class OllamaAI:
         )
         payload = json.dumps(
             {
-                "model": self.model,
+                "model": self.reasoning_model,
                 "messages": [
                     {
                         "role": "system",
@@ -400,14 +489,17 @@ class OllamaAI:
         reasoning_cues = (
             "por qué",
             "por que",
-            "cómo",
-            "como ",
             "explica",
             "analiza",
             "razona",
+            "compara",
             "ayúdame a",
             "ayudame a",
             "qué harías",
             "que harias",
         )
-        return any(cue in lowered for cue in reasoning_cues)
+        if any(cue in lowered for cue in reasoning_cues):
+            return True
+        return len(lowered.split()) >= 8 and any(
+            cue in lowered for cue in ("cómo ", "como ", "qué debería", "que deberia")
+        )

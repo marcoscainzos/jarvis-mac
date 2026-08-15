@@ -66,6 +66,14 @@ class Assistant:
             "jarvis duerme",
         }:
             return Reply("Hasta pronto.", should_exit=True)
+        contextual_cues = (
+            "no me referia", "me referia", "aquello", "lo anterior", "la anterior",
+            "ese archivo", "esa carpeta", "el otro", "la otra",
+        )
+        if any(cue in normalized for cue in contextual_cues):
+            ai_first = self._understand_first(command, normalized)
+            if ai_first is not None:
+                return ai_first
         if normalized in {"jarvis", "allervis", "alervis"}:
             return Reply("Sí, señor.")
         if normalized in {
@@ -160,6 +168,35 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _understand_first(self, command: str, normalized: str) -> Reply | None:
+        if self._conversational_ai is None:
+            return None
+        interpreter = getattr(self._conversational_ai, "understand", None)
+        if interpreter is None:
+            return None
+        # Seguridad y funciones que necesitan extracción temporal exacta pasan al motor dedicado.
+        dedicated = (
+            "pantalla", "ventana", "captura", "investiga", "investigacion", "compara",
+            "informe", "tarea", "recordatorio", "recuerdame", "calendario", "evento",
+            "volumen", "musica", "cancion", "duerme", "salir", "calla",
+        )
+        if any(cue in normalized for cue in dedicated):
+            return None
+        blocked = ("compra", "paga", "contrasena", "password", "formatea", "instala", "terminal")
+        if any(cue in normalized for cue in blocked):
+            return None
+        context = {
+            "ultimo_archivo": self._memory.get("last_file_name") or "",
+            "ubicacion_ultimo_archivo": self._memory.get("last_file_location") or "",
+        }
+        understood = interpreter(command, context)
+        kind = understood.get("kind", "fallback")
+        if kind == "conversation" and understood.get("response"):
+            return Reply(understood["response"])
+        if kind == "action":
+            return self._execute_action_plan(understood, normalized)
+        return None
 
     def _handle_task(self, command: str, normalized: str) -> Reply | None:
         if self._task_engine is None:
@@ -282,7 +319,9 @@ class Assistant:
             return Reply("Ya tengo una investigación en marcha. Pídeme su estado cuando quieras.")
         return None
 
-    def _handle_planned_action(self, command: str, normalized: str) -> Reply | None:
+    def _handle_planned_action(
+        self, command: str, normalized: str, force: bool = False
+    ) -> Reply | None:
         if self._computer_tools is None or self._conversational_ai is None:
             return None
         blocked = (
@@ -301,12 +340,17 @@ class Assistant:
             "traslada", "renombra", "cambia el nombre", "papelera", "borra", "elimina",
             "youtube", "safari", "internet", "escritorio", "descargas", "documentos",
         )
-        if not any(cue in normalized for cue in action_cues):
+        if not force and not any(cue in normalized for cue in action_cues):
             return None
         planner = getattr(self._conversational_ai, "plan_action", None)
         if planner is None:
             return None
         plan = planner(command)
+        return self._execute_action_plan(plan, normalized)
+
+    def _execute_action_plan(self, plan: dict[str, str], normalized: str) -> Reply | None:
+        if self._computer_tools is None:
+            return None
         action = plan.get("action", "none")
         target = plan.get("target", "").strip()
         location = plan.get("location", "documents")

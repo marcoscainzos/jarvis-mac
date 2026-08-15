@@ -61,6 +61,7 @@ def main() -> None:
             super().__init__("J", title="◉", quit_button=None)
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             ai = OllamaAI(history_path=Path.home() / ".jarvis" / "conversation.db")
+            self.ai = ai
             self.computer_tools = MacOSComputerTools()
             self.researcher = BackgroundResearcher(
                 ai.summarize_research,
@@ -162,6 +163,7 @@ def main() -> None:
             except Exception:
                 # La escucha mostrará el error concreto si el usuario la activa.
                 pass
+            self.ai.warm_up()
 
         def _research_complete(self, result: ResearchResult) -> None:
             self.status.title = "Estado: listo"

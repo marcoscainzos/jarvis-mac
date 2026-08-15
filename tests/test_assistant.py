@@ -99,6 +99,15 @@ class FakeScreenAI(FakeAI):
         return "Veo un error de módulo en la ventana activa."
 
 
+class FakeUnderstandingAI(FakePlannerAI):
+    def __init__(self, understanding: dict[str, str], plan: dict[str, str] | None = None) -> None:
+        super().__init__(plan or {"action": "none", "target": "", "location": "documents"})
+        self.understanding = understanding
+
+    def understand(self, message: str, context: dict[str, str]) -> dict[str, str]:
+        return self.understanding
+
+
 def test_greets_user() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("Hola Jarvis").message == "Hola. Estoy listo para ayudarte."
@@ -302,3 +311,26 @@ def test_blocks_sensitive_visual_control() -> None:
 
     assert tools.calls == []
     assert "No pulsaré" in reply.message
+
+
+def test_ai_first_understands_free_conversation_without_template() -> None:
+    ai = FakeUnderstandingAI({"kind": "conversation", "response": "Entiendo lo que quieres decir; sigamos desde ahí."})
+    assistant = Assistant(lambda _: False, conversational_ai=ai)
+
+    reply = assistant.handle("No, no me refería a eso, sino a la idea anterior")
+
+    assert reply.message == "Entiendo lo que quieres decir; sigamos desde ahí."
+
+
+def test_ai_first_routes_natural_action_without_keyword_gate() -> None:
+    tools = FakeTools()
+    ai = FakeUnderstandingAI(
+        {"kind": "action", "response": "", "action": "open_file", "target": "informe", "location": "downloads"},
+        {"action": "open_file", "target": "informe", "location": "downloads"},
+    )
+    assistant = Assistant(lambda _: False, conversational_ai=ai, computer_tools=tools)
+
+    reply = assistant.handle("Quiero ver aquello que bajé sobre el informe")
+
+    assert tools.calls == [("open_file", "informe", "downloads")]
+    assert reply.message == "Aquí tienes informe.pdf."
