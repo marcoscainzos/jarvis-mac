@@ -10,6 +10,7 @@ from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 import certifi
+from jarvis.screen_vision import ScreenVision
 
 
 ALLOWED_APPS = {
@@ -46,6 +47,12 @@ def open_application(requested_name: str) -> bool:
 
 class MacOSComputerTools:
     """Acciones locales concretas; no ejecuta comandos arbitrarios del modelo."""
+
+    def __init__(self) -> None:
+        self._screen_vision = ScreenVision()
+
+    def read_active_window(self) -> tuple[Path | None, str]:
+        return self._screen_vision.read_active_window()
 
     def control_music(self, action: str) -> bool:
         commands = {

@@ -100,6 +100,9 @@ class Assistant:
         research_reply = self._handle_research(command, normalized)
         if research_reply is not None:
             return research_reply
+        screen_reply = self._handle_screen(command, normalized)
+        if screen_reply is not None:
+            return screen_reply
         action_reply = self._handle_computer_action(command, normalized)
         if action_reply is not None:
             return action_reply
@@ -151,6 +154,37 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_screen(self, command: str, normalized: str) -> Reply | None:
+        cues = (
+            "que hay en pantalla", "que ves", "mira mi pantalla", "mira la pantalla",
+            "lee la pantalla", "analiza la pantalla", "analiza esta ventana",
+            "explica este error", "que pone en la pantalla", "captura la pantalla",
+            "captura esta ventana", "haz una captura",
+        )
+        if not any(cue in normalized for cue in cues):
+            return None
+        if self._computer_tools is None:
+            return Reply("No tengo acceso a la ventana activa.")
+        path, visible_text = self._computer_tools.read_active_window()
+        if path is None:
+            return Reply(
+                "No he podido capturar la ventana. Activa Jarvis en Privacidad y seguridad, Grabación de pantalla."
+            )
+        if normalized.startswith(("captura", "haz una captura")):
+            return Reply(f"He guardado la captura en Imágenes, dentro de Jarvis, como {path.name}.")
+        if not visible_text.strip():
+            return Reply(
+                "He capturado la ventana, pero no puedo leer texto. Comprueba el permiso de Grabación de pantalla."
+            )
+        analyzer = getattr(self._conversational_ai, "analyze_screen", None)
+        if analyzer is None:
+            preview = " ".join(visible_text.split())[:350]
+            return Reply(f"En la ventana puedo leer: {preview}")
+        try:
+            return Reply(analyzer(visible_text, command))
+        except RuntimeError as error:
+            return Reply(str(error))
 
     def _handle_research(self, command: str, normalized: str) -> Reply | None:
         if self._researcher is None:

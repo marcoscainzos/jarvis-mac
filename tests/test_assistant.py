@@ -23,6 +23,10 @@ class FakeTools:
         self.calls.append(("search_web", query))
         return True
 
+    def read_active_window(self):
+        self.calls.append(("read_active_window",))
+        return Path("/tmp/ventana.png"), "Error: no se encuentra el módulo principal"
+
     def list_files(self, location: str) -> list[str]:
         self.calls.append(("list_files", location))
         return ["informe.pdf", "foto.png"]
@@ -75,6 +79,12 @@ class FakePlannerAI(FakeAI):
 
     def plan_action(self, message: str) -> dict[str, str]:
         return self.plan
+
+
+class FakeScreenAI(FakeAI):
+    def analyze_screen(self, visible_text: str, question: str) -> str:
+        assert "no se encuentra" in visible_text
+        return "Veo un error de módulo en la ventana activa."
 
 
 def test_greets_user() -> None:
@@ -248,3 +258,15 @@ def test_accepts_common_jarvis_transcription() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("Allervis.").message == "Sí, señor."
     assert assistant.handle("Jarvis").message == "Sí, señor."
+
+
+def test_reads_and_explains_active_window() -> None:
+    tools = FakeTools()
+    assistant = Assistant(
+        lambda _: False, conversational_ai=FakeScreenAI(), computer_tools=tools
+    )
+
+    reply = assistant.handle("Jarvis, explica este error")
+
+    assert tools.calls == [("read_active_window",)]
+    assert "error de módulo" in reply.message

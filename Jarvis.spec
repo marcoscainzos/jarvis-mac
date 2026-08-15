@@ -15,6 +15,8 @@ for package in (
     "onnxruntime",
     "sounddevice",
     "tokenizers",
+    "Vision",
+    "CoreML",
 ):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
@@ -65,5 +67,6 @@ app = BUNDLE(
         "LSUIElement": True,
         "NSHighResolutionCapable": True,
         "NSMicrophoneUsageDescription": "Jarvis necesita oír tus órdenes.",
+        "NSScreenCaptureUsageDescription": "Jarvis necesita ver la ventana cuando se lo pidas.",
     },
 )

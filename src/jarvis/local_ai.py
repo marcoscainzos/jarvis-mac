@@ -165,6 +165,17 @@ class OllamaAI:
         self._messages = [self._messages[0], *conversation[-20:]]
         return answer
 
+    def analyze_screen(self, visible_text: str, question: str) -> str:
+        """Interpreta OCR local sin incorporar su contenido al historial permanente."""
+        prompt = (
+            "Analiza el texto extraído de la ventana activa del usuario. Responde en "
+            "español, de forma concreta y en un máximo de cuatro frases. Si hay un error, "
+            "explica su causa probable y el siguiente paso. No inventes elementos que no "
+            "aparezcan en el texto.\n\nPetición: " + question +
+            "\n\nTexto visible:\n" + visible_text[:12_000]
+        )
+        return self._request_chat([self._messages[0], {"role": "user", "content": prompt}], think=False)
+
     def _conversation_is_stuck(self) -> bool:
         answers = [
             item["content"] for item in self._messages[-8:]

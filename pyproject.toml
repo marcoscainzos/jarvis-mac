@@ -21,6 +21,7 @@ voice = [
 mac-app = [
     "pynput>=1.7,<2",
     "rumps>=0.4,<1",
+    "pyobjc-framework-Vision>=12,<13",
 ]
 build = ["pyinstaller>=6,<7"]
 
