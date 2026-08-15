@@ -73,6 +73,10 @@ def main() -> None:
                 ),
                 MacOSSpeaker(),
             )
+            threading.Thread(
+                target=self._warm_up_voice,
+                daemon=True,
+            ).start()
             self.status = rumps.MenuItem("Estado: listo")
             self.overlay = JarvisOverlay()
             self.overlay.hide()
@@ -113,6 +117,13 @@ def main() -> None:
                 self.clap_detector.start()
             except Exception:
                 self.clap_item.title = "Dos palmadas: no disponibles"
+
+        def _warm_up_voice(self) -> None:
+            try:
+                self.service.listener.warm_up()
+            except Exception:
+                # La escucha mostrará el error concreto si el usuario la activa.
+                pass
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import sys
 import tempfile
+import threading
 import traceback
 import wave
 from collections import deque
@@ -18,7 +19,7 @@ class LocalWhisperListener:
 
     def __init__(
         self,
-        model_name: str = "small",
+        model_name: str = "base",
         language: str = "es",
         duration: int = 6,
         sample_rate: int = 16_000,
@@ -30,6 +31,12 @@ class LocalWhisperListener:
         self.sample_rate = sample_rate
         self.on_recorded = on_recorded
         self._model: Any = None
+        self._model_lock = threading.Lock()
+
+    def warm_up(self) -> None:
+        """Carga Whisper en segundo plano para acelerar la primera orden."""
+        _np, _sd, whisper_model = self._load_dependencies()
+        self._ensure_model(whisper_model)
 
     def listen(self, wait_timeout: float | None = None) -> str:
         np, sd, whisper_model = self._load_dependencies()
@@ -63,12 +70,15 @@ class LocalWhisperListener:
             audio_file.writeframes(recording.tobytes())
 
         try:
-            if self._model is None:
-                self._model = whisper_model(
-                    self.model_name, device="auto", compute_type="int8"
-                )
+            self._ensure_model(whisper_model)
             segments, _ = self._model.transcribe(
-                str(audio_path), language=self.language, vad_filter=True
+                str(audio_path),
+                language=self.language,
+                vad_filter=True,
+                beam_size=1,
+                best_of=1,
+                condition_on_previous_text=False,
+                vad_parameters={"min_silence_duration_ms": 300},
             )
             transcript = " ".join(
                 segment.text.strip() for segment in segments
@@ -84,14 +94,23 @@ class LocalWhisperListener:
             raise SpeechError("No he entendido la frase. Inténtalo de nuevo.")
         return transcript
 
+    def _ensure_model(self, whisper_model: Any) -> None:
+        if self._model is not None:
+            return
+        with self._model_lock:
+            if self._model is None:
+                self._model = whisper_model(
+                    self.model_name, device="auto", compute_type="int8"
+                )
+
     def _record_until_silence(
         self, np: Any, sd: Any, wait_timeout: float | None = None
     ) -> Any:
         """Termina poco después de que el usuario deja de hablar."""
-        block_seconds = 0.10
+        block_seconds = 0.05
         block_frames = int(self.sample_rate * block_seconds)
         max_speech_blocks = max(1, int(self.duration / block_seconds))
-        silence_blocks_needed = int(0.7 / block_seconds)
+        silence_blocks_needed = int(0.45 / block_seconds)
         noise_floor = 30.0
         speech_started = False
         silent_blocks = 0

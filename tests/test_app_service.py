@@ -24,5 +24,5 @@ def test_service_connects_listener_assistant_and_speaker() -> None:
     command, reply = service.listen_and_reply()
 
     assert command == "¿Qué puedes hacer?"
-    assert reply.message.startswith("Puedo recordar")
+    assert reply.message.startswith("Puedo conversar")
     assert speaker.messages == [reply.message]

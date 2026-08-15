@@ -15,7 +15,7 @@ class DoubleClapPattern:
         max_gap: float = 1.50,
     ) -> None:
         self.minimum_threshold = threshold
-        self.noise_floor = max(50.0, threshold / 10)
+        self.noise_floor = max(5.0, threshold / 10)
         self.min_gap = min_gap
         self.max_gap = max_gap
         self._last_clap: float | None = None
@@ -82,6 +82,9 @@ class ClapDetector:
             callback=self._audio_callback,
         )
         self.stream.start()
+        # Ignora sonidos de arranque y deja estabilizar el nivel del micrófono.
+        self.pattern.reset()
+        self._blocked_until = time.monotonic() + 5.0
 
     def stop(self) -> None:
         if self.stream is None:
