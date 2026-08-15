@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from difflib import SequenceMatcher
 from pathlib import Path
 import re
 import sqlite3
@@ -56,6 +57,10 @@ class ConversationHistory:
                 "(SELECT id FROM conversation ORDER BY id DESC LIMIT 100)"
             )
 
+    def clear(self) -> None:
+        with self._connect() as connection:
+            connection.execute("DELETE FROM conversation")
+
 
 class OllamaAI:
     """Cliente local para conversar con un modelo servido por Ollama."""
@@ -93,6 +98,10 @@ class OllamaAI:
             self._messages.extend(self._history.recent())
 
     def reply(self, message: str) -> str:
+        if self._conversation_is_stuck():
+            self._messages = [self._messages[0]]
+            if self._history is not None:
+                self._history.clear()
         messages = [*self._messages, {"role": "user", "content": message}]
         payload = json.dumps(
             {
@@ -125,6 +134,24 @@ class OllamaAI:
         answer = str(result.get("message", {}).get("content", "")).strip()
         if not answer:
             raise RuntimeError("La inteligencia local no ha generado una respuesta.")
+        previous_answers = [
+            item["content"] for item in self._messages[-6:]
+            if item["role"] == "assistant"
+        ]
+        if previous_answers and self._similar(answer, previous_answers[-1]) > 0.82:
+            # No guardamos otra copia: limpiamos el anclaje y respondemos al turno actual.
+            self._messages = [self._messages[0]]
+            if self._history is not None:
+                self._history.clear()
+            retry_messages = [
+                self._messages[0],
+                {
+                    "role": "system",
+                    "content": "Responde exclusivamente a la petición actual. No repitas respuestas anteriores.",
+                },
+                {"role": "user", "content": message},
+            ]
+            answer = self._request_chat(retry_messages, think=False)
         self._messages.extend(
             [
                 {"role": "user", "content": message},
@@ -136,6 +163,49 @@ class OllamaAI:
             self._history.append("assistant", answer)
         conversation = self._messages[1:]
         self._messages = [self._messages[0], *conversation[-20:]]
+        return answer
+
+    def _conversation_is_stuck(self) -> bool:
+        answers = [
+            item["content"] for item in self._messages[-8:]
+            if item["role"] == "assistant"
+        ][-3:]
+        return len(answers) == 3 and all(
+            self._similar(answers[index], answers[index + 1]) > 0.72
+            for index in range(2)
+        )
+
+    @staticmethod
+    def _similar(first: str, second: str) -> float:
+        return SequenceMatcher(None, first.casefold(), second.casefold()).ratio()
+
+    def _request_chat(self, messages: list[dict[str, str]], think: bool) -> str:
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": messages,
+                "stream": False,
+                "think": think,
+                "keep_alive": "30m",
+                "options": {"temperature": 0.65, "num_ctx": 4096, "num_predict": 160},
+            }
+        ).encode("utf-8")
+        request = Request(
+            self.endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=120) as response:
+                result = json.load(response)
+        except (OSError, URLError, TimeoutError) as error:
+            raise RuntimeError(
+                "La inteligencia local no está disponible. Comprueba que Ollama esté iniciado."
+            ) from error
+        answer = str(result.get("message", {}).get("content", "")).strip()
+        if not answer:
+            raise RuntimeError("La inteligencia local no ha generado una respuesta.")
         return answer
 
     def plan_action(self, message: str) -> dict[str, str]:

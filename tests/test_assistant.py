@@ -205,6 +205,17 @@ def test_exit_command_ends_session() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("salir").should_exit is True
     assert assistant.handle("Jarvis, duerme").should_exit is True
+    assert assistant.handle("Ya lo habéis durme").should_exit is True
+
+
+def test_opens_named_directory_without_conversation_loop() -> None:
+    tools = FakeTools()
+    assistant = Assistant(lambda _: False, computer_tools=tools)
+
+    reply = assistant.handle("Quiero solamente abrir el directorio CPE")
+
+    assert tools.calls == [("open_file", "cpe", "desktop")]
+    assert reply.message == "He abierto informe.pdf."
 
 
 def test_remembers_and_forgets_name() -> None:

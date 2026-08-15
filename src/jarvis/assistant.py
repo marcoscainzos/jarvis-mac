@@ -41,6 +41,11 @@ class Assistant:
 
         if not normalized:
             return Reply("No he oído ninguna orden.")
+        if any(
+            word in normalized.split()
+            for word in ("duerme", "duermete", "durme", "durmete")
+        ):
+            return Reply("Entendido. Quedo a la espera de las palmadas.", should_exit=True)
         if self._pending_plan is not None:
             if normalized in {"si", "sí", "confirma", "si confirma", "adelante", "hazlo"}:
                 plan = self._pending_plan
@@ -98,6 +103,30 @@ class Assistant:
         action_reply = self._handle_computer_action(command, normalized)
         if action_reply is not None:
             return action_reply
+        directory = re.search(
+            r"(?:abre|abrir)\s+(?:el\s+)?(?:directorio|carpeta)\s+(.+)", normalized
+        )
+        if directory and self._computer_tools is not None:
+            target = directory.group(1).strip()
+            requested_location = next(
+                (
+                    location for cue, location in (
+                        ("escritorio", "desktop"),
+                        ("descargas", "downloads"),
+                        ("documentos", "documents"),
+                    )
+                    if cue in target
+                ),
+                None,
+            )
+            target = re.sub(r"\s+(?:del?|en)\s+(?:escritorio|descargas|documentos)$", "", target)
+            locations = [requested_location] if requested_location else ["desktop", "downloads", "documents"]
+            for location in locations:
+                path = self._computer_tools.open_file(target, location)
+                if path is not None:
+                    self._remember_file(path, location)
+                    return Reply(f"He abierto {path.name}.")
+            return Reply(f"No encuentro el directorio {target} en tus carpetas personales.")
         file_opening = any(
             cue in normalized
             for cue in ("archivo", "documento", "pdf", "carpeta", "abrelo", "abrela")
@@ -159,8 +188,8 @@ class Assistant:
                 return Reply("Aún no tengo fuentes de una investigación terminada.")
             titles = ", ".join(title for title, _url in result.sources[:5])
             return Reply(f"He consultado estas fuentes: {titles}.")
-        request = re.match(
-            r"(?:investiga|averigua|compara|haz una investigacion (?:sobre|de))\s+(.+)",
+        request = re.search(
+            r"(?:investiga|investigues|investigar|averigua|compara|haz una investigacion (?:sobre|de))\s+(.+)",
             normalized,
         )
         if request:
