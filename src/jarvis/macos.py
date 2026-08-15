@@ -205,6 +205,58 @@ end run
         )
         return result.returncode == 0
 
+    def show_research_source(self, url: str, first: bool = False) -> bool:
+        """Muestra las fuentes en una ventana de Safari situada a la derecha."""
+        if not url.startswith(("http://", "https://")):
+            return False
+        if first:
+            script = """
+on run argv
+    tell application "System Events"
+        set previousProcess to first application process whose frontmost is true
+    end tell
+    tell application "Finder" to set screenBounds to bounds of window of desktop
+    set screenWidth to item 3 of screenBounds
+    set screenHeight to item 4 of screenBounds
+    tell application "Safari"
+        activate
+        make new document with properties {URL:item 1 of argv}
+    end tell
+    delay 0.4
+    tell application "System Events"
+        tell process "Safari"
+            set position of front window to {screenWidth / 2, 25}
+            set size of front window to {screenWidth / 2, screenHeight - 25}
+        end tell
+        set frontmost of previousProcess to true
+    end tell
+end run
+"""
+        else:
+            script = """
+on run argv
+    tell application "Safari"
+        if (count of windows) is 0 then
+            make new document with properties {URL:item 1 of argv}
+        else
+            tell front window
+                set newTab to make new tab with properties {URL:item 1 of argv}
+                set current tab to newTab
+            end tell
+        end if
+    end tell
+end run
+"""
+        if self._osascript(script, url):
+            return True
+        # Sin permiso de Accesibilidad no puede mover la ventana, pero sí mostrar la fuente.
+        return subprocess.run(
+            ["open", "-a", "Safari", url],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+
     def set_volume(self, level: int) -> bool:
         safe_level = max(0, min(100, level))
         return self._osascript(f"set volume output volume {safe_level}")

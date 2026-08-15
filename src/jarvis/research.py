@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import ssl
 import threading
+import time
 import unicodedata
 from typing import Callable
 from urllib.parse import quote_plus, urlparse
@@ -53,10 +54,12 @@ class BackgroundResearcher:
         summarizer: Callable[[str, list[dict[str, str]]], str],
         on_complete: Callable[[ResearchResult], None] | None = None,
         storage_path: Path | None = None,
+        on_source: Callable[[str, str, int, int], None] | None = None,
     ) -> None:
         self.summarizer = summarizer
         self.on_complete = on_complete
         self.storage_path = storage_path
+        self.on_source = on_source
         self._lock = threading.Lock()
         self._state = "idle"
         self._query = ""
@@ -103,6 +106,10 @@ class BackgroundResearcher:
                         "text": (text or description)[:6000],
                     }
                 )
+                if self.on_source is not None:
+                    self.on_source(title, url, index, min(5, len(links)))
+                    # Permite que la fuente sea visible antes de pasar a la siguiente.
+                    time.sleep(1.2)
             if not sources:
                 raise RuntimeError("No he encontrado fuentes accesibles.")
             with self._lock:

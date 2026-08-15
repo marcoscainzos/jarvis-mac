@@ -60,19 +60,23 @@ def main() -> None:
             super().__init__("J", title="◉", quit_button=None)
             memory = SQLiteMemory(Path.home() / ".jarvis" / "memory.db")
             ai = OllamaAI(history_path=Path.home() / ".jarvis" / "conversation.db")
+            self.computer_tools = MacOSComputerTools()
             self.researcher = BackgroundResearcher(
                 ai.summarize_research,
                 on_complete=lambda result: AppHelper.callAfter(
                     self._research_complete, result
                 ),
                 storage_path=Path.home() / ".jarvis" / "latest-research.json",
+                on_source=lambda title, url, index, total: AppHelper.callAfter(
+                    self._research_source, title, url, index, total
+                ),
             )
             self.service = JarvisService(
                 Assistant(
                     open_application,
                     memory,
                     ai,
-                    MacOSComputerTools(),
+                    self.computer_tools,
                     self.researcher,
                 ),
                 LocalWhisperListener(
@@ -136,11 +140,55 @@ def main() -> None:
                 pass
 
         def _research_complete(self, result: ResearchResult) -> None:
+            self.status.title = "Estado: listo"
             rumps.notification(
                 "Jarvis",
                 "Investigación terminada",
                 f"He comparado {len(result.sources)} fuentes sobre {result.query}.",
             )
+            self._announce_research(
+                "Investigación terminada. Ya puedes preguntarme qué he encontrado."
+            )
+
+        def _research_source(
+            self, title: str, url: str, index: int, total: int
+        ) -> None:
+            self.status.title = f"Investigando: fuente {index} de {total}"
+            self.computer_tools.show_research_source(url, first=index == 1)
+            rumps.notification(
+                "Jarvis investiga",
+                f"Fuente {index} de {total}",
+                title[:180],
+            )
+            self._announce_research(f"Fuente {index} de {total}: {title[:80]}.")
+
+        def _announce_research(self, message: str) -> None:
+            if not hasattr(self, "listening_lock"):
+                return
+            if not self.listening_lock.acquire(blocking=False):
+                return
+            claps_were_active = self.clap_detector.stream is not None
+            if claps_were_active:
+                self.clap_detector.stop()
+
+            def worker() -> None:
+                try:
+                    self.service.speaker.speak(message)
+                finally:
+                    AppHelper.callAfter(
+                        self._finish_research_announcement, claps_were_active
+                    )
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def _finish_research_announcement(self, restart_claps: bool) -> None:
+            if restart_claps:
+                try:
+                    self.clap_detector.start()
+                    self.clap_detector.resume(cooldown=1.0)
+                except Exception:
+                    self.clap_item.title = "Dos palmadas: no disponibles"
+            self.listening_lock.release()
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
