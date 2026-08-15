@@ -22,6 +22,8 @@ class ConversationalAI(Protocol):
         self, query: str, sources: list[dict[str, str]]
     ) -> str: ...
 
+    def summarize_project_session(self, context: str) -> str: ...
+
 
 class ConversationHistory:
     """Historial local persistente y acotado para conservar el contexto."""
@@ -264,6 +266,16 @@ class OllamaAI:
             "\n\nTexto visible:\n" + visible_text[:12_000]
         )
         return self._request_chat([self._messages[0], {"role": "user", "content": prompt}], think=False)
+
+    def summarize_project_session(self, context: str) -> str:
+        prompt = (
+            "Resume esta sesión de proyecto en español y en un máximo de tres frases: qué se "
+            "observó, qué problemas aparecieron y cuál debería ser el siguiente paso. No inventes "
+            "actividad que no figure en el registro.\n\n" + context[:8000]
+        )
+        return self._request_chat(
+            [self._messages[0], {"role": "user", "content": prompt}], think=False
+        )
 
     def _conversation_is_stuck(self) -> bool:
         answers = [

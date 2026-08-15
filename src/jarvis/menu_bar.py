@@ -17,6 +17,8 @@ from jarvis.memory import SQLiteMemory
 from jarvis.research import BackgroundResearcher, ResearchResult
 from jarvis.speech import LocalWhisperListener
 from jarvis.task_engine import TaskEngine, TaskSnapshot
+from jarvis.project_companion import ProjectCompanion, ProjectSession
+from jarvis.screen_vision import ScreenVision
 
 
 def _acquire_single_instance() -> Any | None:
@@ -79,6 +81,13 @@ def main() -> None:
                 Path.home() / ".jarvis" / "current-task.json",
                 on_update=lambda task: AppHelper.callAfter(self._task_update, task),
             )
+            self.project_companion = ProjectCompanion(
+                ScreenVision(),
+                Path.home() / ".jarvis" / "project-session.json",
+                on_update=lambda session, event: AppHelper.callAfter(
+                    self._project_update, session, event
+                ),
+            )
             self.service = JarvisService(
                 Assistant(
                     open_application,
@@ -87,6 +96,7 @@ def main() -> None:
                     self.computer_tools,
                     self.researcher,
                     self.task_engine,
+                    self.project_companion,
                 ),
                 LocalWhisperListener(
                     duration=8,
@@ -122,10 +132,14 @@ def main() -> None:
             )
             self.task_item = rumps.MenuItem("Tarea: ninguna")
             self.cancel_task_item = rumps.MenuItem("Cancelar tarea", callback=self.cancel_task)
+            self.project_item = rumps.MenuItem("Contexto: iniciando")
+            self.stop_project_item = rumps.MenuItem("Pausar contexto", callback=self.stop_project)
             self.menu = [
                 self.status,
                 self.task_item,
                 self.cancel_task_item,
+                self.project_item,
+                self.stop_project_item,
                 None,
                 self.listen_item,
                 self.clap_item,
@@ -144,6 +158,19 @@ def main() -> None:
                 self.clap_detector.start()
             except Exception:
                 self.clap_item.title = "Dos palmadas: no disponibles"
+            self._project_update(self.project_companion.start_context(), "started")
+
+        def _project_update(self, session: ProjectSession, event: str) -> None:
+            self.project_item.title = (
+                f"Contexto: activo — {session.observations} observaciones"
+                if session.active else "Contexto: pausado"
+            )
+            if event == "issue" and session.issues:
+                rumps.notification("Jarvis detectó un problema", session.project, session.issues[-1])
+
+        def stop_project(self, _sender: Any) -> None:
+            if self.project_companion.stop() is None:
+                rumps.notification("Jarvis", "Contexto", "La observación ya está pausada.")
 
         def _task_update(self, task: TaskSnapshot) -> None:
             labels = {"running": "en curso", "done": "terminada", "error": "con error", "cancelled": "cancelada", "idle": "ninguna"}
@@ -329,6 +356,7 @@ def main() -> None:
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
             self.clap_detector.stop()
+            self.project_companion.stop()
             self.overlay.hide()
             rumps.quit_application()
 

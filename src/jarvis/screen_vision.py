@@ -124,3 +124,11 @@ class ScreenVision:
     def _normalize(text: str) -> str:
         value = unicodedata.normalize("NFD", text.casefold())
         return "".join(character for character in value if unicodedata.category(character) != "Mn").strip()
+    def active_window_info(self) -> tuple[str, str]:
+        window = self._front_window()
+        if window is None:
+            return "", ""
+        return (
+            str(window.get("kCGWindowOwnerName", "")),
+            str(window.get("kCGWindowName", "")),
+        )

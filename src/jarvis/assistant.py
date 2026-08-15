@@ -11,6 +11,7 @@ from jarvis.local_ai import ConversationalAI
 from jarvis.computer_tools import ComputerTools
 from jarvis.research import BackgroundResearcher
 from jarvis.task_engine import TaskEngine
+from jarvis.project_companion import ProjectCompanion, ProjectSession
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class Assistant:
         computer_tools: ComputerTools | None = None,
         researcher: BackgroundResearcher | None = None,
         task_engine: TaskEngine | None = None,
+        project_companion: ProjectCompanion | None = None,
     ) -> None:
         self._open_app = open_app
         self._memory = memory or VolatileMemory()
@@ -37,6 +39,7 @@ class Assistant:
         self._computer_tools = computer_tools
         self._researcher = researcher
         self._task_engine = task_engine
+        self._project_companion = project_companion
         self._pending_plan: dict[str, str] | None = None
 
     def handle(self, command: str) -> Reply:
@@ -66,6 +69,9 @@ class Assistant:
             "jarvis duerme",
         }:
             return Reply("Hasta pronto.", should_exit=True)
+        project_reply = self._handle_project_companion(command, normalized)
+        if project_reply is not None:
+            return project_reply
         contextual_cues = (
             "no me referia", "me referia", "aquello", "lo anterior", "la anterior",
             "ese archivo", "esa carpeta", "el otro", "la otra",
@@ -168,6 +174,42 @@ class Assistant:
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_project_companion(self, command: str, normalized: str) -> Reply | None:
+        if self._project_companion is None:
+            return None
+        if normalized in {"pausa la observacion", "deja de observar", "pausa el contexto"}:
+            session = self._project_companion.stop()
+            if session is None:
+                return Reply("La observación ya estaba pausada.")
+            return Reply("He pausado la observación de contexto. No miraré ninguna ventana.")
+        if normalized in {"reanuda la observacion", "reanuda el contexto", "vuelve a observar"}:
+            self._project_companion.start_context()
+            return Reply("He reanudado el contexto de trabajo.")
+        if normalized in {"resume la sesion", "resumen del proyecto", "como va el proyecto", "que has visto", "resume lo que he hecho"}:
+            session = self._project_companion.status()
+            if not session.project:
+                return Reply("Todavía no tengo una sesión de proyecto registrada.")
+            return Reply(self._project_summary(session))
+        return None
+
+    def _project_summary(self, session: ProjectSession) -> str:
+        context = (
+            f"Contexto: {session.project}\nAplicaciones seguidas: {session.application}\n"
+            f"Inicio: {session.started_at}\nObservaciones: {session.observations}\n"
+            f"Ventanas: {', '.join(session.windows) or 'ninguna'}\n"
+            f"Problemas: {'; '.join(session.issues) or 'ninguno detectado'}"
+        )
+        summarizer = getattr(self._conversational_ai, "summarize_project_session", None)
+        if summarizer is not None:
+            try:
+                return summarizer(context)
+            except RuntimeError:
+                pass
+        return (
+            f"He observado {session.observations} estados de {session.project}. "
+            f"Problemas detectados: {len(session.issues)}."
+        )
 
     def _understand_first(self, command: str, normalized: str) -> Reply | None:
         if self._conversational_ai is None:
