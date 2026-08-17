@@ -5,7 +5,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 import re
 import sqlite3
-from typing import Protocol
+from typing import Callable, Protocol
 import unicodedata
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -81,6 +81,7 @@ class OllamaAI:
         self.reasoning_model = reasoning_model
         self.action_model = action_model
         self.endpoint = endpoint
+        self._stream_callback: Callable[[str], None] | None = None
         self._history = ConversationHistory(history_path) if history_path else None
         self._messages: list[dict[str, str]] = [
             {
@@ -112,6 +113,9 @@ class OllamaAI:
     def reply_with_context(self, message: str, context: str) -> str:
         return self._reply(message, context)
 
+    def set_stream_callback(self, callback: Callable[[str], None] | None) -> None:
+        self._stream_callback = callback
+
     def _reply(self, message: str, context: str) -> str:
         if self._conversation_is_stuck():
             self._messages = [self._messages[0]]
@@ -122,11 +126,10 @@ class OllamaAI:
             if context else []
         )
         messages = [*self._messages, *context_message, {"role": "user", "content": message}]
-        payload = json.dumps(
-            {
+        payload_data = {
                 "model": self.reasoning_model if self._needs_reasoning(message) else self.model,
                 "messages": messages,
-                "stream": False,
+                "stream": self._stream_callback is not None,
                 "think": False,
                 "keep_alive": "30m",
                 "options": {
@@ -135,7 +138,7 @@ class OllamaAI:
                     "num_predict": 100,
                 },
             }
-        ).encode("utf-8")
+        payload = json.dumps(payload_data).encode("utf-8")
         request = Request(
             self.endpoint,
             data=payload,
@@ -144,20 +147,36 @@ class OllamaAI:
         )
         try:
             with urlopen(request, timeout=120) as response:
-                result = json.load(response)
+                if self._stream_callback is None:
+                    result = json.load(response)
+                    answer = str(result.get("message", {}).get("content", "")).strip()
+                else:
+                    chunks: list[str] = []
+                    for raw_line in response:
+                        if not raw_line.strip():
+                            continue
+                        event = json.loads(raw_line)
+                        chunk = str(event.get("message", {}).get("content", ""))
+                        if chunk:
+                            chunks.append(chunk)
+                            self._stream_callback(chunk)
+                    answer = "".join(chunks).strip()
         except (OSError, URLError, TimeoutError) as error:
             raise RuntimeError(
                 "La inteligencia local no está disponible. Comprueba que Ollama esté iniciado."
             ) from error
 
-        answer = str(result.get("message", {}).get("content", "")).strip()
         if not answer:
             raise RuntimeError("La inteligencia local no ha generado una respuesta.")
         previous_answers = [
             item["content"] for item in self._messages[-6:]
             if item["role"] == "assistant"
         ]
-        if previous_answers and self._similar(answer, previous_answers[-1]) > 0.70:
+        if (
+            self._stream_callback is None
+            and previous_answers
+            and self._similar(answer, previous_answers[-1]) > 0.70
+        ):
             # No guardamos otra copia: limpiamos el anclaje y respondemos al turno actual.
             self._messages = [self._messages[0]]
             if self._history is not None:

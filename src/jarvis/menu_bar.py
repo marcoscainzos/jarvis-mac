@@ -313,11 +313,20 @@ def main() -> None:
                         break
                     # Mientras piensa y habla, el microfono atiende solo «duerme».
                     self.wake_detector.listen_for_sleep()
-                    reply = self.service.assistant.handle(command)
+                    self.service.speaker.begin_stream(
+                        lambda: AppHelper.callAfter(self._apply_status, "speaking")
+                    )
+                    self.ai.set_stream_callback(self.service.speaker.feed_stream_chunk)
+                    try:
+                        reply = self.service.assistant.handle(command)
+                    finally:
+                        self.ai.set_stream_callback(None)
+                    streamed = self.service.speaker.finish_stream()
                     if self._sleep_requested.is_set():
                         break
-                    AppHelper.callAfter(self._apply_status, "speaking")
-                    self.service.speaker.speak(reply.message)
+                    if not streamed:
+                        AppHelper.callAfter(self._apply_status, "speaking")
+                        self.service.speaker.speak(reply.message)
                     if self._sleep_requested.is_set():
                         break
                     AppHelper.callAfter(
