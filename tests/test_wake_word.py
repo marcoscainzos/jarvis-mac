@@ -22,4 +22,7 @@ def test_ignores_other_sounds_and_speech() -> None:
 def test_detects_global_sleep_word() -> None:
     assert contains_sleep_word("Jarvis, duerme")
     assert contains_sleep_word("DUERME")
+    assert contains_sleep_word("dueme")
+    assert contains_sleep_word("duermete")
+    assert contains_sleep_word("durme")
     assert not contains_sleep_word("puedes ayudarme")

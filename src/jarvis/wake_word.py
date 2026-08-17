@@ -48,7 +48,9 @@ def _edit_distance(left: str, right: str) -> int:
 def contains_sleep_word(transcript: str) -> bool:
     normalized = unicodedata.normalize("NFKD", transcript.casefold())
     normalized = "".join(char for char in normalized if not unicodedata.combining(char))
-    return re.search(r"\bduerme\b", normalized) is not None
+    words = re.findall(r"\b[a-z]+\b", normalized)
+    exact = {"duerme", "duermete", "dueme", "duerm", "durme", "durmete", "dorme"}
+    return any(word in exact or _edit_distance(word, "duerme") <= 1 for word in words)
 
 
 class WakeWordDetector:
@@ -106,10 +108,12 @@ class WakeWordDetector:
             if not self._enabled.is_set() or self._stop.is_set():
                 continue
             try:
+                sleep_only = self._sleep_only
                 transcript = self.listener.listen(
                     wait_timeout=None,
                     notify_recorded=False,
                     wake_mode=True,
+                    keyword_hint="duerme" if sleep_only else "Jarvis",
                 )
             except (NoSpeechTimeout, UnrecognizedSpeech, SpeechError):
                 continue

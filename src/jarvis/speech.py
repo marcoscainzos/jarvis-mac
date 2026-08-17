@@ -48,6 +48,7 @@ class LocalWhisperListener:
         wait_timeout: float | None = None,
         notify_recorded: bool = True,
         wake_mode: bool = False,
+        keyword_hint: str = "Jarvis",
     ) -> str:
         np, sd, whisper_model = self._load_dependencies()
         self._cancel_recording.clear()
@@ -94,7 +95,7 @@ class LocalWhisperListener:
             if wake_mode:
                 # Una sola palabra puede ser eliminada por VAD; este contexto
                 # ayuda a Whisper a conservar y escribir correctamente Jarvis.
-                transcription_options["initial_prompt"] = "Jarvis"
+                transcription_options["initial_prompt"] = keyword_hint
             else:
                 transcription_options["vad_parameters"] = {
                     "min_silence_duration_ms": 300
