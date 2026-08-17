@@ -42,7 +42,7 @@ class VoiceBenchmarkResult:
     expected: str
     transcript: str
     latency_seconds: float
-    word_error_rate: float
+    word_error_rate: float | None
     expected_wake: bool
     detected_wake: bool
     passed: bool
@@ -61,19 +61,30 @@ def run_manifest(manifest_path: Path, model: str = "base") -> list[VoiceBenchmar
         expected = str(sample.get("expected", ""))
         expected_wake = bool(sample.get("wake", False))
         detected_wake = command_after_wake_word(transcript) is not None
-        error_rate = word_error_rate(expected, transcript) if expected else 0.0
+        error_rate = word_error_rate(expected, transcript) if expected else None
         passed = detected_wake == expected_wake and (not expected or error_rate <= 0.25)
         results.append(VoiceBenchmarkResult(
             str(audio_path), expected, transcript, round(latency, 3),
-            round(error_rate, 4), expected_wake, detected_wake, passed,
+            round(error_rate, 4) if error_rate is not None else None,
+            expected_wake, detected_wake, passed,
         ))
     return results
+
+
+def save_results(results: list[VoiceBenchmarkResult], path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps([asdict(result) for result in results], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return path
 
 
 def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit("Uso: iris-voice-benchmark manifest.json [modelo]")
     results = run_manifest(Path(sys.argv[1]), sys.argv[2] if len(sys.argv) > 2 else "base")
+    save_results(results, Path.home() / ".jarvis" / "voice-benchmark.json")
     print(json.dumps([asdict(result) for result in results], ensure_ascii=False, indent=2))
     if not all(result.passed for result in results):
         raise SystemExit(1)

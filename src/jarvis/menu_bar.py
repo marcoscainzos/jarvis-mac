@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fcntl
+import subprocess
 import threading
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from jarvis.task_engine import TaskEngine, TaskSnapshot
 from jarvis.project_companion import ProjectCompanion, ProjectSession
 from jarvis.screen_vision import ScreenVision
 from jarvis.wake_word import WakeWordDetector, contains_sleep_word
+from jarvis.voice_report import build_voice_report
 
 
 def _acquire_single_instance() -> Any | None:
@@ -146,14 +148,7 @@ def main() -> None:
                 "Activar contexto visual", callback=self.toggle_project_context
             )
             self.menu = [
-                self.task_item,
-                self.cancel_task_item,
-                self.project_item,
-                self.stop_project_item,
-                None,
-                self.listen_item,
-                self.wake_item,
-                self.login_item,
+                rumps.MenuItem("Informe de voz", callback=self.open_voice_report),
                 rumps.MenuItem("Salir de Iris", callback=self.quit_app),
             ]
             self.listening_lock = threading.Lock()
@@ -180,6 +175,13 @@ def main() -> None:
             )
             if event == "issue" and session.issues:
                 rumps.notification("Iris detectó un problema", session.project, session.issues[-1])
+
+        def open_voice_report(self, _sender: Any) -> None:
+            folder = Path.home() / ".jarvis"
+            report = build_voice_report(
+                folder / "voice-benchmark.json", folder / "voice-report.html"
+            )
+            subprocess.Popen(["open", str(report)])
 
         def toggle_project_context(self, _sender: Any) -> None:
             if self.project_companion.status().active:
