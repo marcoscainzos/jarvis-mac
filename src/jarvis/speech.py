@@ -32,6 +32,11 @@ class LocalWhisperListener:
         self.on_recorded = on_recorded
         self._model: Any = None
         self._model_lock = threading.Lock()
+        self._cancel_recording = threading.Event()
+
+    def cancel_recording(self) -> None:
+        """Interrumpe de forma segura una espera de micrófono en curso."""
+        self._cancel_recording.set()
 
     def warm_up(self) -> None:
         """Carga Whisper en segundo plano para acelerar la primera orden."""
@@ -45,6 +50,7 @@ class LocalWhisperListener:
         wake_mode: bool = False,
     ) -> str:
         np, sd, whisper_model = self._load_dependencies()
+        self._cancel_recording.clear()
 
         try:
             recording = self._record_until_silence(
@@ -141,6 +147,8 @@ class LocalWhisperListener:
             ) as stream:
             index = 0
             while True:
+                if self._cancel_recording.is_set():
+                    raise NoSpeechTimeout()
                 block, _overflowed = stream.read(block_frames)
                 samples = block.astype("float32")
                 rms = float(np.sqrt(np.mean(samples * samples)))

@@ -83,9 +83,11 @@ class WakeWordDetector:
     def stop(self) -> None:
         self._enabled.clear()
         self._stop.set()
+        self.listener.cancel_recording()
 
     def pause(self) -> None:
         self._enabled.clear()
+        self.listener.cancel_recording()
 
     def resume(self) -> None:
         if not self._stop.is_set():
@@ -105,11 +107,13 @@ class WakeWordDetector:
                 continue
             try:
                 transcript = self.listener.listen(
-                    wait_timeout=1.0,
+                    wait_timeout=None,
                     notify_recorded=False,
                     wake_mode=True,
                 )
             except (NoSpeechTimeout, UnrecognizedSpeech, SpeechError):
+                continue
+            if not self._enabled.is_set() or self._stop.is_set():
                 continue
             if contains_sleep_word(transcript):
                 self.pause()

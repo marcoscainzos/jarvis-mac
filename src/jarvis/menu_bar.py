@@ -106,6 +106,12 @@ def main() -> None:
                 ),
                 MacOSSpeaker(),
             )
+            # Un escuchador pequeno e independiente mantiene abierto un unico
+            # flujo de microfono para evitar el indicador naranja intermitente.
+            self.wake_listener = LocalWhisperListener(
+                model_name="tiny",
+                duration=3,
+            )
             threading.Thread(
                 target=self._warm_up_voice,
                 daemon=True,
@@ -157,7 +163,7 @@ def main() -> None:
             )
             self.hotkeys.start()
             self.wake_detector = WakeWordDetector(
-                self.service.listener,
+                self.wake_listener,
                 lambda command: AppHelper.callAfter(
                     self._wake_word_detected, command
                 ),
@@ -200,6 +206,7 @@ def main() -> None:
         def _warm_up_voice(self) -> None:
             try:
                 self.service.listener.warm_up()
+                self.wake_listener.warm_up()
             except Exception:
                 # La escucha mostrará el error concreto si el usuario la activa.
                 pass
