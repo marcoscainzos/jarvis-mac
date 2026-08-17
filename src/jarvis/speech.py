@@ -84,14 +84,23 @@ class LocalWhisperListener:
 
         try:
             self._ensure_model(whisper_model)
+            transcription_options: dict[str, Any] = {
+                "language": self.language,
+                "vad_filter": not wake_mode,
+                "beam_size": 1,
+                "best_of": 1,
+                "condition_on_previous_text": False,
+            }
+            if wake_mode:
+                # Una sola palabra puede ser eliminada por VAD; este contexto
+                # ayuda a Whisper a conservar y escribir correctamente Jarvis.
+                transcription_options["initial_prompt"] = "Jarvis"
+            else:
+                transcription_options["vad_parameters"] = {
+                    "min_silence_duration_ms": 300
+                }
             segments, _ = self._model.transcribe(
-                str(audio_path),
-                language=self.language,
-                vad_filter=True,
-                beam_size=1,
-                best_of=1,
-                condition_on_previous_text=False,
-                vad_parameters={"min_silence_duration_ms": 300},
+                str(audio_path), **transcription_options
             )
             transcript = " ".join(
                 segment.text.strip() for segment in segments
