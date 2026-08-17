@@ -8,7 +8,6 @@ from typing import Any
 from jarvis.app_service import JarvisService
 from jarvis.assistant import Assistant
 from jarvis.audio import NoSpeechTimeout, SpeechError, UnrecognizedSpeech
-from jarvis.clap_detector import ClapDetector
 from jarvis.login_item import disable_login, enable_login, is_login_enabled
 from jarvis.local_ai import OllamaAI
 from jarvis.macos import MacOSComputerTools, open_application
@@ -19,6 +18,7 @@ from jarvis.speech import LocalWhisperListener
 from jarvis.task_engine import TaskEngine, TaskSnapshot
 from jarvis.project_companion import ProjectCompanion, ProjectSession
 from jarvis.screen_vision import ScreenVision
+from jarvis.wake_word import WakeWordDetector
 
 
 def _acquire_single_instance() -> Any | None:
@@ -114,13 +114,14 @@ def main() -> None:
             self.overlay = JarvisOverlay()
             self.overlay.hide()
             self.visual_session = False
-            self._restart_claps_after_listening = False
+            self._restart_wake_word_after_listening = False
+            self._pending_wake_command = ""
             self.listen_item = rumps.MenuItem(
                 "Escuchar (habla tras el sonido)  ⌃⌥Espacio",
                 callback=self.start_listening,
             )
-            self.clap_item = rumps.MenuItem(
-                "Dos palmadas: activadas", callback=self.toggle_claps
+            self.wake_item = rumps.MenuItem(
+                'Activación por “Jarvis”: activada', callback=self.toggle_wake_word
             )
             login_title = (
                 "Inicio automático: activado"
@@ -132,8 +133,10 @@ def main() -> None:
             )
             self.task_item = rumps.MenuItem("Tarea: ninguna")
             self.cancel_task_item = rumps.MenuItem("Cancelar tarea", callback=self.cancel_task)
-            self.project_item = rumps.MenuItem("Contexto: iniciando")
-            self.stop_project_item = rumps.MenuItem("Pausar contexto", callback=self.stop_project)
+            self.project_item = rumps.MenuItem("Contexto visual: desactivado")
+            self.stop_project_item = rumps.MenuItem(
+                "Activar contexto visual", callback=self.toggle_project_context
+            )
             self.menu = [
                 self.status,
                 self.task_item,
@@ -142,7 +145,7 @@ def main() -> None:
                 self.stop_project_item,
                 None,
                 self.listen_item,
-                self.clap_item,
+                self.wake_item,
                 self.login_item,
                 rumps.MenuItem("Salir de Jarvis", callback=self.quit_app),
             ]
@@ -151,14 +154,16 @@ def main() -> None:
                 {"<ctrl>+<alt>+<space>": self.start_listening}
             )
             self.hotkeys.start()
-            self.clap_detector = ClapDetector(
-                lambda: AppHelper.callAfter(self.start_listening, "claps")
+            self.wake_detector = WakeWordDetector(
+                self.service.listener,
+                lambda command: AppHelper.callAfter(
+                    self._wake_word_detected, command
+                ),
             )
             try:
-                self.clap_detector.start()
+                self.wake_detector.start()
             except Exception:
-                self.clap_item.title = "Dos palmadas: no disponibles"
-            self._project_update(self.project_companion.start_context(), "started")
+                self.wake_item.title = 'Activación por “Jarvis”: no disponible'
 
         def _project_update(self, session: ProjectSession, event: str) -> None:
             self.project_item.title = (
@@ -168,9 +173,14 @@ def main() -> None:
             if event == "issue" and session.issues:
                 rumps.notification("Jarvis detectó un problema", session.project, session.issues[-1])
 
-        def stop_project(self, _sender: Any) -> None:
-            if self.project_companion.stop() is None:
-                rumps.notification("Jarvis", "Contexto", "La observación ya está pausada.")
+        def toggle_project_context(self, _sender: Any) -> None:
+            if self.project_companion.status().active:
+                self.project_companion.stop()
+                self.stop_project_item.title = "Activar contexto visual"
+                return
+            session = self.project_companion.start_context()
+            self._project_update(session, "started")
+            self.stop_project_item.title = "Pausar contexto visual"
 
         def _task_update(self, task: TaskSnapshot) -> None:
             labels = {"running": "en curso", "done": "terminada", "error": "con error", "cancelled": "cancelada", "idle": "ninguna"}
@@ -220,38 +230,36 @@ def main() -> None:
                 return
             if not self.listening_lock.acquire(blocking=False):
                 return
-            claps_were_active = self.clap_detector.stream is not None
-            if claps_were_active:
-                self.clap_detector.stop()
+            wake_was_active = self.wake_detector.running
+            if wake_was_active:
+                self.wake_detector.pause()
 
             def worker() -> None:
                 try:
                     self.service.speaker.speak(message)
                 finally:
                     AppHelper.callAfter(
-                        self._finish_research_announcement, claps_were_active
+                        self._finish_research_announcement, wake_was_active
                     )
 
             threading.Thread(target=worker, daemon=True).start()
 
-        def _finish_research_announcement(self, restart_claps: bool) -> None:
-            if restart_claps:
-                try:
-                    self.clap_detector.start()
-                    self.clap_detector.resume(cooldown=1.0)
-                except Exception:
-                    self.clap_item.title = "Dos palmadas: no disponibles"
+        def _finish_research_announcement(self, restart_wake: bool) -> None:
+            if restart_wake:
+                self.wake_detector.resume()
             self.listening_lock.release()
+
+        def _wake_word_detected(self, command: str) -> None:
+            self._pending_wake_command = command
+            self.start_listening("wake_word")
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
                 return
-            self.visual_session = _sender == "claps"
-            self._restart_claps_after_listening = (
-                self.clap_detector.stream is not None
-            )
-            if self._restart_claps_after_listening:
-                self.clap_detector.stop()
+            self.visual_session = _sender == "wake_word"
+            self._restart_wake_word_after_listening = self.wake_detector.running
+            if self._restart_wake_word_after_listening:
+                self.wake_detector.pause()
             AppHelper.callAfter(self._begin_visual_listening)
             threading.Thread(target=self._listen_worker, daemon=True).start()
 
@@ -260,9 +268,13 @@ def main() -> None:
             try:
                 while True:
                     try:
-                        command = self.service.listener.listen(
-                            wait_timeout=None if first_turn else 10.0
-                        )
+                        if first_turn and self._pending_wake_command:
+                            command = self._pending_wake_command
+                            self._pending_wake_command = ""
+                        else:
+                            command = self.service.listener.listen(
+                                wait_timeout=None if first_turn else 10.0
+                            )
                     except NoSpeechTimeout:
                         break
                     except UnrecognizedSpeech as error:
@@ -294,13 +306,9 @@ def main() -> None:
         def _finish_listening(self) -> None:
             self._apply_status("ready")
             self.visual_session = False
-            if self._restart_claps_after_listening:
-                try:
-                    self.clap_detector.start()
-                    self.clap_detector.resume(cooldown=1.5)
-                except Exception:
-                    self.clap_item.title = "Dos palmadas: no disponibles"
-            self._restart_claps_after_listening = False
+            if self._restart_wake_word_after_listening:
+                self.wake_detector.resume()
+            self._restart_wake_word_after_listening = False
 
         def _show_reply(self, message: str) -> None:
             rumps.notification("Jarvis", "Orden completada", message)
@@ -331,16 +339,13 @@ def main() -> None:
             elif self.visual_session:
                 self.overlay.show(state)
 
-        def toggle_claps(self, _sender: Any) -> None:
-            if self.clap_detector.stream is None:
-                try:
-                    self.clap_detector.start()
-                    self.clap_item.title = "Dos palmadas: activadas"
-                except Exception:
-                    self.clap_item.title = "Dos palmadas: no disponibles"
+        def toggle_wake_word(self, _sender: Any) -> None:
+            if self.wake_detector.running:
+                self.wake_detector.stop()
+                self.wake_item.title = 'Activación por “Jarvis”: desactivada'
             else:
-                self.clap_detector.stop()
-                self.clap_item.title = "Dos palmadas: desactivadas"
+                self.wake_detector.start()
+                self.wake_item.title = 'Activación por “Jarvis”: activada'
 
         def toggle_login(self, _sender: Any) -> None:
             try:
@@ -355,7 +360,7 @@ def main() -> None:
 
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()
-            self.clap_detector.stop()
+            self.wake_detector.stop()
             self.project_companion.stop()
             self.overlay.hide()
             rumps.quit_application()

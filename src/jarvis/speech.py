@@ -38,7 +38,11 @@ class LocalWhisperListener:
         _np, _sd, whisper_model = self._load_dependencies()
         self._ensure_model(whisper_model)
 
-    def listen(self, wait_timeout: float | None = None) -> str:
+    def listen(
+        self,
+        wait_timeout: float | None = None,
+        notify_recorded: bool = True,
+    ) -> str:
         np, sd, whisper_model = self._load_dependencies()
 
         try:
@@ -51,7 +55,7 @@ class LocalWhisperListener:
                 "No puedo usar el micrófono. Revisa su permiso en Ajustes del Sistema."
             ) from error
 
-        if self.on_recorded:
+        if notify_recorded and self.on_recorded:
             self.on_recorded()
 
         peak = int(np.max(np.abs(recording.astype("int32"))))
