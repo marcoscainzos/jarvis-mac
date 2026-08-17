@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 import unicodedata
 from collections.abc import Callable
 
@@ -95,6 +96,7 @@ class WakeWordDetector:
             self._enabled.set()
 
     def _run(self) -> None:
+        retry_delay = 1.0
         while not self._stop.is_set():
             self._enabled.wait(0.25)
             if not self._enabled.is_set() or self._stop.is_set():
@@ -107,8 +109,15 @@ class WakeWordDetector:
                     wake_mode=True,
                     keyword_hint="duerme" if sleep_only else "Iris",
                 )
-            except (NoSpeechTimeout, UnrecognizedSpeech, SpeechError):
+            except (NoSpeechTimeout, UnrecognizedSpeech):
+                retry_delay = 1.0
                 continue
+            except SpeechError:
+                # Evita un bucle de CPU y permite que CoreAudio se recupere solo.
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2.0, 12.0)
+                continue
+            retry_delay = 1.0
             if not self._enabled.is_set() or self._stop.is_set():
                 continue
             if contains_sleep_word(transcript):

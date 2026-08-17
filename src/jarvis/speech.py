@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from jarvis.audio import NoSpeechTimeout, SpeechError, UnrecognizedSpeech
+from jarvis.audio_devices import select_input_device
 
 
 class LocalWhisperListener:
@@ -24,6 +25,7 @@ class LocalWhisperListener:
         duration: int = 6,
         sample_rate: int = 16_000,
         on_recorded: Callable[[], None] | None = None,
+        input_device: int | None = None,
     ) -> None:
         self.model_name = model_name
         self.language = language
@@ -33,6 +35,8 @@ class LocalWhisperListener:
         self._model: Any = None
         self._model_lock = threading.Lock()
         self._cancel_recording = threading.Event()
+        self._input_device = input_device
+        self._device_was_selected = input_device is not None
 
     def cancel_recording(self) -> None:
         """Interrumpe de forma segura una espera de micrófono en curso."""
@@ -60,10 +64,21 @@ class LocalWhisperListener:
         except NoSpeechTimeout:
             raise
         except Exception as error:
-            sd.stop()
-            raise SpeechError(
-                "No puedo usar el micrófono. Revisa su permiso en Ajustes del Sistema."
-            ) from error
+            # CoreAudio puede perder temporalmente un dispositivo al conectar
+            # auriculares. Recalcula la entrada y prueba una sola vez.
+            self._input_device = None
+            self._device_was_selected = False
+            try:
+                recording = self._record_until_silence(
+                    np, sd, wait_timeout, wake_mode=wake_mode
+                )
+            except NoSpeechTimeout:
+                raise
+            except Exception as retry_error:
+                self._write_diagnostic("audio_input", retry_error)
+                raise SpeechError(
+                    "No puedo usar el micrófono. Revisa su permiso en Ajustes del Sistema."
+                ) from retry_error
 
         if notify_recorded and self.on_recorded:
             self.on_recorded()
@@ -150,6 +165,7 @@ class LocalWhisperListener:
         waiting_blocks = 0
 
         with sd.InputStream(
+                device=self._resolve_input_device(sd),
                 samplerate=self.sample_rate,
                 channels=1,
                 dtype="int16",
@@ -195,6 +211,19 @@ class LocalWhisperListener:
                     break
                 index += 1
         return np.concatenate(chunks, axis=0)
+
+    def _resolve_input_device(self, sd: Any) -> int | None:
+        if self._device_was_selected:
+            return self._input_device
+        devices = list(sd.query_devices())
+        default = getattr(sd.default, "device", (None, None))
+        try:
+            default_input = int(default[0])
+        except (TypeError, ValueError, IndexError):
+            default_input = int(default) if isinstance(default, int) else None
+        self._input_device = select_input_device(devices, default_input)
+        self._device_was_selected = True
+        return self._input_device
 
     @staticmethod
     def _load_dependencies() -> tuple[Any, Any, Any]:
