@@ -1,3 +1,3 @@
-"""Jarvis para macOS."""
+"""Iris para macOS."""
 
 __version__ = "0.4.0"

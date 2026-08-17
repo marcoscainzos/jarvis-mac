@@ -4,9 +4,9 @@ import jarvis.login_item as login_item
 
 
 def test_creates_login_launch_agent(tmp_path, monkeypatch) -> None:
-    app = tmp_path / "Applications/Jarvis.app"
+    app = tmp_path / "Applications/Iris.app"
     app.mkdir(parents=True)
-    target = tmp_path / "LaunchAgents/dev.marcoscainzos.jarvis.plist"
+    target = tmp_path / "LaunchAgents/dev.marcoscainzos.iris.plist"
     monkeypatch.setattr(login_item, "launch_agent_path", lambda: target)
 
     assert login_item.enable_login(app) == target

@@ -119,7 +119,7 @@ class TaskEngine:
             data = json.loads(self.storage_path.read_text(encoding="utf-8"))
             snapshot = TaskSnapshot(**data)
             if snapshot.state == "running":
-                snapshot = TaskSnapshot("error", snapshot.goal, "Tarea interrumpida", error="Jarvis se cerró antes de terminar")
+                snapshot = TaskSnapshot("error", snapshot.goal, "Tarea interrumpida", error="Iris se cerró antes de terminar")
             self._snapshot = snapshot
         except (OSError, ValueError, TypeError):
             pass

@@ -38,7 +38,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Jarvis",
+    name="Iris",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -53,20 +53,20 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="Jarvis",
+    name="Iris",
 )
 
 app = BUNDLE(
     coll,
-    name="Jarvis.app",
-    bundle_identifier="dev.marcoscainzos.jarvis",
+    name="Iris.app",
+    bundle_identifier="dev.marcoscainzos.iris",
     version="0.4.0",
     target_arch="arm64",
     info_plist={
-        "CFBundleDisplayName": "Jarvis",
+        "CFBundleDisplayName": "Iris",
         "LSUIElement": True,
         "NSHighResolutionCapable": True,
-        "NSMicrophoneUsageDescription": "Jarvis necesita oír tus órdenes.",
-        "NSScreenCaptureUsageDescription": "Jarvis necesita ver la ventana cuando se lo pidas.",
+        "NSMicrophoneUsageDescription": "Iris necesita oír tus órdenes.",
+        "NSScreenCaptureUsageDescription": "Iris necesita ver la ventana cuando se lo pidas.",
     },
 )

@@ -65,8 +65,8 @@ class Assistant:
             "adios",
             "terminar",
             "duerme",
-            "duerme jarvis",
-            "jarvis duerme",
+            "duerme iris",
+            "iris duerme",
         }:
             return Reply("Hasta pronto.", should_exit=True)
         memory_reply = self._handle_long_term_memory(command, normalized)
@@ -83,13 +83,12 @@ class Assistant:
             ai_first = self._understand_first(command, normalized)
             if ai_first is not None:
                 return ai_first
-        if normalized in {"jarvis", "allervis", "alervis"}:
+        if normalized in {"iris", "hiris", "iriz"}:
             return Reply("Sí, señor.")
         if normalized in {
             "hola",
-            "hola jarvis",
-            "hola allervis",
-            "hola alervis",
+            "hola iris",
+            "hola hiris",
         }:
             name = self._memory.get("user_name")
             if name:
@@ -345,11 +344,11 @@ class Assistant:
             path = self._computer_tools.capture_active_window()
             if path is None:
                 return Reply("No he podido guardar la captura. Revisa el permiso de Grabación de pantalla.")
-            return Reply(f"He guardado la captura en Imágenes, dentro de Jarvis, como {path.name}.")
+            return Reply(f"He guardado la captura en Imágenes, dentro de Iris, como {path.name}.")
         path, visible_text = self._computer_tools.read_active_window()
         if path is None:
             return Reply(
-                "No he podido capturar la ventana. Activa Jarvis en Privacidad y seguridad, Grabación de pantalla."
+                "No he podido capturar la ventana. Activa Iris en Privacidad y seguridad, Grabación de pantalla."
             )
         if not visible_text.strip():
             return Reply(

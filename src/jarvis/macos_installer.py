@@ -8,7 +8,7 @@ from pathlib import Path
 
 def install_app(applications_dir: Path | None = None) -> Path:
     applications = applications_dir or (Path.home() / "Applications")
-    app = applications / "Jarvis.app"
+    app = applications / "Iris.app"
     contents = app / "Contents"
     executable_dir = contents / "MacOS"
     executable_dir.mkdir(parents=True, exist_ok=True)
@@ -18,21 +18,21 @@ def install_app(applications_dir: Path | None = None) -> Path:
         raise RuntimeError("No encuentro jarvis-app en el entorno activo.")
 
     plist = {
-        "CFBundleDisplayName": "Jarvis",
-        "CFBundleExecutable": "Jarvis",
-        "CFBundleIdentifier": "dev.marcoscainzos.jarvis",
-        "CFBundleName": "Jarvis",
+        "CFBundleDisplayName": "Iris",
+        "CFBundleExecutable": "Iris",
+        "CFBundleIdentifier": "dev.marcoscainzos.iris",
+        "CFBundleName": "Iris",
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": "0.4.0",
         "LSUIElement": True,
         "LSArchitecturePriority": ["arm64"],
         "NSHighResolutionCapable": True,
-        "NSMicrophoneUsageDescription": "Jarvis necesita oír tus órdenes.",
+        "NSMicrophoneUsageDescription": "Iris necesita oír tus órdenes.",
     }
     with (contents / "Info.plist").open("wb") as handle:
         plistlib.dump(plist, handle)
 
-    launcher = executable_dir / "Jarvis"
+    launcher = executable_dir / "Iris"
     launcher.write_text(
         "#!/bin/sh\nexec /usr/bin/arch -arm64 "
         + _shell_quote(sys.executable)
@@ -53,8 +53,8 @@ def main() -> None:
     try:
         app = install_app()
     except (OSError, RuntimeError) as error:
-        raise SystemExit(f"No se pudo instalar Jarvis.app: {error}") from error
-    print(f"Jarvis instalado en {app}")
+        raise SystemExit(f"No se pudo instalar Iris.app: {error}") from error
+    print(f"Iris instalado en {app}")
 
 
 if __name__ == "__main__":

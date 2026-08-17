@@ -10,23 +10,15 @@ from jarvis.speech import LocalWhisperListener
 
 
 def command_after_wake_word(transcript: str) -> str | None:
-    """Devuelve lo dicho tras Jarvis, o None si no se pronuncio la palabra."""
+    """Devuelve lo dicho tras Iris, o None si no se pronuncio la palabra."""
     normalized = unicodedata.normalize("NFKD", transcript.casefold())
     normalized = "".join(char for char in normalized if not unicodedata.combining(char))
-    # Whisper puede escribir el nombre foneticamente de varias formas en espanol.
+    # Whisper puede anteponer una hache o cambiar la ese final.
     match = re.search(
-        r"\b(?:jarvis|yarvis|harvis|charvis|llervis|allervis|jervis|jarbis|jarviz|arvis)\b[\s,.:;!?-]*(.*)",
+        r"\b(?:iris|hiris|iriz)\b[\s,.:;!?-]*(.*)",
         normalized,
     )
-    if match:
-        return match.group(1).strip()
-
-    # Tolera hasta dos letras distintas en una palabra de longitud parecida.
-    words = list(re.finditer(r"\b[a-z]{4,7}\b", normalized))
-    for word in words:
-        if _edit_distance(word.group(), "jarvis") <= 2:
-            return normalized[word.end():].lstrip(" ,.:;!?-")
-    return None
+    return match.group(1).strip() if match else None
 
 
 def _edit_distance(left: str, right: str) -> int:
@@ -54,7 +46,7 @@ def contains_sleep_word(transcript: str) -> bool:
 
 
 class WakeWordDetector:
-    """Escucha frases localmente y activa Jarvis solo al oir su nombre."""
+    """Escucha frases localmente y activa Iris solo al oir su nombre."""
 
     def __init__(
         self,
@@ -113,7 +105,7 @@ class WakeWordDetector:
                     wait_timeout=None,
                     notify_recorded=False,
                     wake_mode=True,
-                    keyword_hint="duerme" if sleep_only else "Jarvis",
+                    keyword_hint="duerme" if sleep_only else "Iris",
                 )
             except (NoSpeechTimeout, UnrecognizedSpeech, SpeechError):
                 continue

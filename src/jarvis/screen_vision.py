@@ -14,7 +14,7 @@ class ScreenVision:
         window_id = self._front_window_id()
         if window_id is None:
             return None
-        folder = Path.home() / "Pictures" / "Jarvis"
+        folder = Path.home() / "Pictures" / "Iris"
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"ventana-{datetime.now():%Y%m%d-%H%M%S}.png"
         result = subprocess.run(
@@ -79,7 +79,7 @@ class ScreenVision:
         windows: list[dict[str, Any]] = Quartz.CGWindowListCopyWindowInfo(
             options, Quartz.kCGNullWindowID
         )
-        ignored = {"Jarvis", "Dock", "Window Server", "Control Center"}
+        ignored = {"Iris", "Jarvis", "Dock", "Window Server", "Control Center"}
         for window in windows:
             if window.get("kCGWindowLayer") != 0:
                 continue

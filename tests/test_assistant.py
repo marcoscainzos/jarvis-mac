@@ -110,7 +110,7 @@ class FakeUnderstandingAI(FakePlannerAI):
 
 def test_greets_user() -> None:
     assistant = Assistant(lambda _: False)
-    assert assistant.handle("Hola Jarvis").message == "Hola. Estoy listo para ayudarte."
+    assert assistant.handle("Hola Iris").message == "Hola. Estoy listo para ayudarte."
 
 
 def test_opens_allowed_application() -> None:
@@ -235,7 +235,7 @@ def test_can_cancel_sensitive_action() -> None:
 def test_exit_command_ends_session() -> None:
     assistant = Assistant(lambda _: False)
     assert assistant.handle("salir").should_exit is True
-    assert assistant.handle("Jarvis, duerme").should_exit is True
+    assert assistant.handle("Iris, duerme").should_exit is True
     assert assistant.handle("Ya lo habéis durme").should_exit is True
 
 
@@ -271,14 +271,14 @@ def test_understands_voice_punctuation_and_accents() -> None:
     assistant = Assistant(lambda _: False)
 
     assert "Puedo conversar" in assistant.handle("¿Qué puedes hacer?").message
-    assert assistant.handle("¡Hola Jarvis!").message.startswith("Hola.")
+    assert assistant.handle("¡Hola Iris!").message.startswith("Hola.")
     assert assistant.handle("¿Qué hora es?").message.startswith("Son las")
 
 
-def test_accepts_common_jarvis_transcription() -> None:
+def test_accepts_common_iris_transcription() -> None:
     assistant = Assistant(lambda _: False)
-    assert assistant.handle("Allervis.").message == "Sí, señor."
-    assert assistant.handle("Jarvis").message == "Sí, señor."
+    assert assistant.handle("Hiris.").message == "Sí, señor."
+    assert assistant.handle("Iris").message == "Sí, señor."
 
 
 def test_reads_and_explains_active_window() -> None:
@@ -287,7 +287,7 @@ def test_reads_and_explains_active_window() -> None:
         lambda _: False, conversational_ai=FakeScreenAI(), computer_tools=tools
     )
 
-    reply = assistant.handle("Jarvis, explica este error")
+    reply = assistant.handle("Iris, explica este error")
 
     assert tools.calls == [("read_active_window",)]
     assert "error de módulo" in reply.message

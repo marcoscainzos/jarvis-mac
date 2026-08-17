@@ -129,7 +129,7 @@ def main() -> None:
                 callback=self.start_listening,
             )
             self.wake_item = rumps.MenuItem(
-                'Activación por “Jarvis”: activada', callback=self.toggle_wake_word
+                'Activación por “Iris”: activada', callback=self.toggle_wake_word
             )
             login_title = (
                 "Inicio automático: activado"
@@ -154,7 +154,7 @@ def main() -> None:
                 self.listen_item,
                 self.wake_item,
                 self.login_item,
-                rumps.MenuItem("Salir de Jarvis", callback=self.quit_app),
+                rumps.MenuItem("Salir de Iris", callback=self.quit_app),
             ]
             self.listening_lock = threading.Lock()
             self.hotkeys = keyboard.GlobalHotKeys(
@@ -171,7 +171,7 @@ def main() -> None:
             try:
                 self.wake_detector.start()
             except Exception:
-                self.wake_item.title = 'Activación por “Jarvis”: no disponible'
+                self.wake_item.title = 'Activación por “Iris”: no disponible'
 
         def _project_update(self, session: ProjectSession, event: str) -> None:
             self.project_item.title = (
@@ -179,7 +179,7 @@ def main() -> None:
                 if session.active else "Contexto: pausado"
             )
             if event == "issue" and session.issues:
-                rumps.notification("Jarvis detectó un problema", session.project, session.issues[-1])
+                rumps.notification("Iris detectó un problema", session.project, session.issues[-1])
 
         def toggle_project_context(self, _sender: Any) -> None:
             if self.project_companion.status().active:
@@ -194,13 +194,13 @@ def main() -> None:
             labels = {"running": "en curso", "done": "terminada", "error": "con error", "cancelled": "cancelada", "idle": "ninguna"}
             self.task_item.title = f"Tarea: {labels.get(task.state, task.state)} — {task.step[:55]}"
             if task.state == "done":
-                rumps.notification("Jarvis", "Tarea terminada", f"Informe verificado: {task.output}")
+                rumps.notification("Iris", "Tarea terminada", f"Informe verificado: {task.output}")
             elif task.state == "error":
-                rumps.notification("Jarvis", "Tarea detenida", task.error)
+                rumps.notification("Iris", "Tarea detenida", task.error)
 
         def cancel_task(self, _sender: Any) -> None:
             if not self.task_engine.cancel():
-                rumps.notification("Jarvis", "Sin tarea activa", "No hay nada que cancelar.")
+                rumps.notification("Iris", "Sin tarea activa", "No hay nada que cancelar.")
 
         def _warm_up_voice(self) -> None:
             try:
@@ -214,7 +214,7 @@ def main() -> None:
         def _research_complete(self, result: ResearchResult) -> None:
             self.status.title = "Estado: listo"
             rumps.notification(
-                "Jarvis",
+                "Iris",
                 "Investigación terminada",
                 f"He comparado {len(result.sources)} fuentes sobre {result.query}.",
             )
@@ -228,7 +228,7 @@ def main() -> None:
             self.status.title = f"Investigando: fuente {index} de {total}"
             self.computer_tools.show_research_source(url, first=index == 1)
             rumps.notification(
-                "Jarvis investiga",
+                "Iris investiga",
                 f"Fuente {index} de {total}",
                 title[:180],
             )
@@ -320,7 +320,7 @@ def main() -> None:
                         break
                     AppHelper.callAfter(
                         self._show_reply,
-                        f"Tú: {command}\n\nJarvis: {reply.message}",
+                        f"Tú: {command}\n\nIris: {reply.message}",
                     )
                     if reply.should_exit:
                         break
@@ -341,7 +341,7 @@ def main() -> None:
             self._restart_wake_word_after_listening = False
 
         def _show_reply(self, message: str) -> None:
-            rumps.notification("Jarvis", "Orden completada", message)
+            rumps.notification("Iris", "Orden completada", message)
 
         def _begin_visual_listening(self) -> None:
             self._apply_status("listening")
@@ -361,7 +361,7 @@ def main() -> None:
                 "listening": "Estado: escuchando…",
                 "processing": "Estado: procesando…",
                 "speaking": "Estado: hablando…",
-                "sleeping": 'Estado: dormido — di “Jarvis”',
+                "sleeping": 'Estado: dormido — di “Iris”',
             }
             self.status.title = labels[state]
             self.title = "◉" if state in {"ready", "sleeping"} else "●"
@@ -373,10 +373,10 @@ def main() -> None:
         def toggle_wake_word(self, _sender: Any) -> None:
             if self.wake_detector.running:
                 self.wake_detector.stop()
-                self.wake_item.title = 'Activación por “Jarvis”: desactivada'
+                self.wake_item.title = 'Activación por “Iris”: desactivada'
             else:
                 self.wake_detector.start()
-                self.wake_item.title = 'Activación por “Jarvis”: activada'
+                self.wake_item.title = 'Activación por “Iris”: activada'
 
         def toggle_login(self, _sender: Any) -> None:
             try:
@@ -387,7 +387,7 @@ def main() -> None:
                     enable_login()
                     self.login_item.title = "Inicio automático: activado"
             except (OSError, RuntimeError) as error:
-                rumps.alert("Jarvis", str(error))
+                rumps.alert("Iris", str(error))
 
         def quit_app(self, _sender: Any) -> None:
             self.hotkeys.stop()

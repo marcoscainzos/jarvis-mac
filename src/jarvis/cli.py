@@ -13,7 +13,7 @@ from jarvis.speech import LocalWhisperListener
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Jarvis para macOS")
+    parser = argparse.ArgumentParser(description="Iris para macOS")
     parser.add_argument(
         "--voice", action="store_true", help="escuchar y responder usando la voz"
     )
@@ -27,7 +27,7 @@ def main() -> None:
     listener = LocalWhisperListener() if args.voice else None
     speaker = MacOSSpeaker() if args.voice else None
     mode = "pulsa Intro para hablar" if args.voice else "escribe una orden"
-    print(f"Jarvis v0.3 — {mode} o “salir” para terminar.")
+    print(f"Iris v0.4 — {mode} o “salir” para terminar.")
 
     while True:
         try:
@@ -39,14 +39,14 @@ def main() -> None:
             else:
                 command = input("Tú: ")
         except (EOFError, KeyboardInterrupt):
-            print("\nJarvis: Hasta pronto.")
+            print("\nIris: Hasta pronto.")
             break
         except SpeechError as error:
-            print(f"Jarvis: {error}")
+            print(f"Iris: {error}")
             continue
 
         reply = assistant.handle(command)
-        print(f"Jarvis: {reply.message}")
+        print(f"Iris: {reply.message}")
         if speaker:
             speaker.speak(reply.message)
         if reply.should_exit:

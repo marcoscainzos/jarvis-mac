@@ -48,7 +48,7 @@ class LocalWhisperListener:
         wait_timeout: float | None = None,
         notify_recorded: bool = True,
         wake_mode: bool = False,
-        keyword_hint: str = "Jarvis",
+        keyword_hint: str = "Iris",
     ) -> str:
         np, sd, whisper_model = self._load_dependencies()
         self._cancel_recording.clear()
@@ -71,7 +71,7 @@ class LocalWhisperListener:
         peak = int(np.max(np.abs(recording.astype("int32"))))
         if peak < 80:
             raise SpeechError(
-                "No está entrando sonido por el micrófono. Revisa el permiso de Jarvis."
+                "No está entrando sonido por el micrófono. Revisa el permiso de Iris."
             )
 
         temporary = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -94,7 +94,7 @@ class LocalWhisperListener:
             }
             if wake_mode:
                 # Una sola palabra puede ser eliminada por VAD; este contexto
-                # ayuda a Whisper a conservar y escribir correctamente Jarvis.
+                # ayuda a Whisper a conservar y escribir correctamente Iris.
                 transcription_options["initial_prompt"] = keyword_hint
             else:
                 transcription_options["vad_parameters"] = {

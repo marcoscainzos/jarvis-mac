@@ -13,7 +13,7 @@ def test_installer_creates_application_bundle(tmp_path, monkeypatch) -> None:
     app = installer.install_app(tmp_path / "Applications")
 
     assert (app / "Contents/Info.plist").exists()
-    launcher = app / "Contents/MacOS/Jarvis"
+    launcher = app / "Contents/MacOS/Iris"
     assert launcher.exists()
     assert str(fake_command) in launcher.read_text()
     assert "/usr/bin/arch -arm64" in launcher.read_text()

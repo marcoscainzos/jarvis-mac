@@ -4,7 +4,7 @@ import plistlib
 from pathlib import Path
 
 
-LABEL = "dev.marcoscainzos.jarvis"
+LABEL = "dev.marcoscainzos.iris"
 
 
 def launch_agent_path() -> Path:
@@ -12,9 +12,9 @@ def launch_agent_path() -> Path:
 
 
 def enable_login(app_path: Path | None = None) -> Path:
-    application = app_path or (Path.home() / "Applications" / "Jarvis.app")
+    application = app_path or (Path.home() / "Applications" / "Iris.app")
     if not application.exists():
-        raise RuntimeError(f"No encuentro Jarvis.app en {application}")
+        raise RuntimeError(f"No encuentro Iris.app en {application}")
     target = launch_agent_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     configuration = {
