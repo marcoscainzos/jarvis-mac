@@ -21,6 +21,12 @@ def command_after_wake_word(transcript: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def contains_sleep_word(transcript: str) -> bool:
+    normalized = unicodedata.normalize("NFKD", transcript.casefold())
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.search(r"\bduerme\b", normalized) is not None
+
+
 class WakeWordDetector:
     """Escucha frases localmente y activa Jarvis solo al oir su nombre."""
 
@@ -28,12 +34,15 @@ class WakeWordDetector:
         self,
         listener: LocalWhisperListener,
         on_wake: Callable[[str], None],
+        on_sleep: Callable[[], None] | None = None,
     ) -> None:
         self.listener = listener
         self.on_wake = on_wake
+        self.on_sleep = on_sleep
         self._stop = threading.Event()
         self._enabled = threading.Event()
         self._thread: threading.Thread | None = None
+        self._sleep_only = False
 
     @property
     def running(self) -> bool:
@@ -56,6 +65,13 @@ class WakeWordDetector:
 
     def resume(self) -> None:
         if not self._stop.is_set():
+            self._sleep_only = False
+            self._enabled.set()
+
+    def listen_for_sleep(self) -> None:
+        """Durante una interacción ignora todo excepto la orden «duerme»."""
+        if not self._stop.is_set():
+            self._sleep_only = True
             self._enabled.set()
 
     def _run(self) -> None:
@@ -69,6 +85,13 @@ class WakeWordDetector:
                     notify_recorded=False,
                 )
             except (NoSpeechTimeout, UnrecognizedSpeech, SpeechError):
+                continue
+            if contains_sleep_word(transcript):
+                self.pause()
+                if self.on_sleep is not None:
+                    self.on_sleep()
+                continue
+            if self._sleep_only:
                 continue
             command = command_after_wake_word(transcript)
             if command is None:

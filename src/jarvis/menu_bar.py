@@ -18,7 +18,7 @@ from jarvis.speech import LocalWhisperListener
 from jarvis.task_engine import TaskEngine, TaskSnapshot
 from jarvis.project_companion import ProjectCompanion, ProjectSession
 from jarvis.screen_vision import ScreenVision
-from jarvis.wake_word import WakeWordDetector
+from jarvis.wake_word import WakeWordDetector, contains_sleep_word
 
 
 def _acquire_single_instance() -> Any | None:
@@ -116,6 +116,8 @@ def main() -> None:
             self.visual_session = False
             self._restart_wake_word_after_listening = False
             self._pending_wake_command = ""
+            self._sleep_requested = threading.Event()
+            self.sleeping = False
             self.listen_item = rumps.MenuItem(
                 "Escuchar (habla tras el sonido)  ⌃⌥Espacio",
                 callback=self.start_listening,
@@ -159,6 +161,7 @@ def main() -> None:
                 lambda command: AppHelper.callAfter(
                     self._wake_word_detected, command
                 ),
+                on_sleep=lambda: AppHelper.callAfter(self._sleep_now),
             )
             try:
                 self.wake_detector.start()
@@ -250,8 +253,19 @@ def main() -> None:
             self.listening_lock.release()
 
         def _wake_word_detected(self, command: str) -> None:
+            self.sleeping = False
+            self._sleep_requested.clear()
             self._pending_wake_command = command
             self.start_listening("wake_word")
+
+        def _sleep_now(self) -> None:
+            self._sleep_requested.set()
+            self.sleeping = True
+            self._pending_wake_command = ""
+            self.service.speaker.stop()
+            self.overlay.hide()
+            self._apply_status("sleeping")
+            self.wake_detector.resume()
 
         def start_listening(self, _sender: Any = None) -> None:
             if not self.listening_lock.acquire(blocking=False):
@@ -286,9 +300,18 @@ def main() -> None:
                         self.service.speaker.speak(str(error))
                         break
 
+                    if contains_sleep_word(command):
+                        AppHelper.callAfter(self._sleep_now)
+                        break
+                    # Mientras piensa y habla, el microfono atiende solo «duerme».
+                    self.wake_detector.listen_for_sleep()
                     reply = self.service.assistant.handle(command)
+                    if self._sleep_requested.is_set():
+                        break
                     AppHelper.callAfter(self._apply_status, "speaking")
                     self.service.speaker.speak(reply.message)
+                    if self._sleep_requested.is_set():
+                        break
                     AppHelper.callAfter(
                         self._show_reply,
                         f"Tú: {command}\n\nJarvis: {reply.message}",
@@ -296,6 +319,7 @@ def main() -> None:
                     if reply.should_exit:
                         break
                     first_turn = False
+                    self.wake_detector.pause()
                     AppHelper.callAfter(self._begin_followup_listening)
             except Exception as error:
                 self.service.speaker.speak(f"Ha ocurrido un error: {error}")
@@ -304,7 +328,7 @@ def main() -> None:
                 self.listening_lock.release()
 
         def _finish_listening(self) -> None:
-            self._apply_status("ready")
+            self._apply_status("sleeping" if self.sleeping else "ready")
             self.visual_session = False
             if self._restart_wake_word_after_listening:
                 self.wake_detector.resume()
@@ -331,10 +355,11 @@ def main() -> None:
                 "listening": "Estado: escuchando…",
                 "processing": "Estado: procesando…",
                 "speaking": "Estado: hablando…",
+                "sleeping": 'Estado: dormido — di “Jarvis”',
             }
             self.status.title = labels[state]
-            self.title = "◉" if state == "ready" else "●"
-            if state == "ready":
+            self.title = "◉" if state in {"ready", "sleeping"} else "●"
+            if state in {"ready", "sleeping"}:
                 self.overlay.hide()
             elif self.visual_session:
                 self.overlay.show(state)

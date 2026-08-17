@@ -2,17 +2,33 @@ from __future__ import annotations
 
 import subprocess
 import importlib
+import threading
 
 
 class MacOSSpeaker:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._process: subprocess.Popen[bytes] | None = None
+
     def speak(self, message: str) -> None:
         process = subprocess.Popen(
             ["say", "-v", "Reed (Español (España))", "-r", "170", message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        with self._lock:
+            self._process = process
         self._stop_on_loud_voice(process)
         process.wait()
+        with self._lock:
+            if self._process is process:
+                self._process = None
+
+    def stop(self) -> None:
+        with self._lock:
+            process = self._process
+        if process is not None and process.poll() is None:
+            process.terminate()
 
     @staticmethod
     def _stop_on_loud_voice(process: subprocess.Popen[bytes]) -> None:
