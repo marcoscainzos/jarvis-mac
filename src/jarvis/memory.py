@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -24,6 +25,12 @@ class SQLiteMemory:
                 "CREATE TABLE IF NOT EXISTS memory "
                 "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS project_memory ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, project TEXT NOT NULL, "
+                "category TEXT NOT NULL, content TEXT NOT NULL, "
+                "created_at TEXT NOT NULL)"
+            )
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path)
@@ -46,6 +53,49 @@ class SQLiteMemory:
     def forget(self, key: str) -> None:
         with self._connect() as connection:
             connection.execute("DELETE FROM memory WHERE key = ?", (key,))
+
+    def set_active_project(self, project: str) -> None:
+        project = " ".join(project.split())[:120]
+        self.set("active_project", project)
+        self.set("active_project_date", datetime.now().isoformat(timespec="seconds"))
+
+    def active_project(self) -> str | None:
+        return self.get("active_project")
+
+    def remember_project(self, category: str, content: str, project: str = "") -> None:
+        selected = project.strip() or self.active_project() or "General"
+        clean = " ".join(content.split())[:600]
+        if not clean:
+            return
+        with self._connect() as connection:
+            duplicate = connection.execute(
+                "SELECT 1 FROM project_memory WHERE project = ? AND category = ? "
+                "AND content = ? LIMIT 1", (selected, category, clean)
+            ).fetchone()
+            if duplicate is None:
+                connection.execute(
+                    "INSERT INTO project_memory(project, category, content, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (selected, category, clean, datetime.now().isoformat(timespec="seconds")),
+                )
+
+    def project_context(self, project: str = "", limit: int = 12) -> str:
+        selected = project.strip() or self.active_project() or ""
+        if not selected:
+            return ""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT category, content, created_at FROM project_memory "
+                "WHERE project = ? ORDER BY id DESC LIMIT ?", (selected, limit)
+            ).fetchall()
+        if not rows:
+            return f"Proyecto activo: {selected}. Todavía no hay detalles guardados."
+        labels = {"decision": "Decisión", "preference": "Preferencia", "pending": "Pendiente", "note": "Nota"}
+        details = "\n".join(
+            f"- {labels.get(category, category)}: {content} ({created_at[:10]})"
+            for category, content, created_at in reversed(rows)
+        )
+        return f"Proyecto activo: {selected}\n{details}"
 
 
 class VolatileMemory:

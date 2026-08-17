@@ -146,7 +146,6 @@ def main() -> None:
                 "Activar contexto visual", callback=self.toggle_project_context
             )
             self.menu = [
-                self.status,
                 self.task_item,
                 self.cancel_task_item,
                 self.project_item,

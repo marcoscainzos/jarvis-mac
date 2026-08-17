@@ -106,11 +106,21 @@ class OllamaAI:
             self._messages.extend(self._history.recent())
 
     def reply(self, message: str) -> str:
+        return self._reply(message, "")
+
+    def reply_with_context(self, message: str, context: str) -> str:
+        return self._reply(message, context)
+
+    def _reply(self, message: str, context: str) -> str:
         if self._conversation_is_stuck():
             self._messages = [self._messages[0]]
             if self._history is not None:
                 self._history.clear()
-        messages = [*self._messages, {"role": "user", "content": message}]
+        context_message = (
+            [{"role": "system", "content": "Memoria local relevante del usuario:\n" + context}]
+            if context else []
+        )
+        messages = [*self._messages, *context_message, {"role": "user", "content": message}]
         payload = json.dumps(
             {
                 "model": self.reasoning_model if self._needs_reasoning(message) else self.model,
@@ -157,6 +167,7 @@ class OllamaAI:
                     "role": "system",
                     "content": "Responde exclusivamente a la petición actual. No repitas respuestas anteriores.",
                 },
+                *context_message,
                 {"role": "user", "content": message},
             ]
             answer = self._request_chat(retry_messages, think=False)

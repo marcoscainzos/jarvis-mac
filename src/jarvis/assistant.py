@@ -69,6 +69,9 @@ class Assistant:
             "jarvis duerme",
         }:
             return Reply("Hasta pronto.", should_exit=True)
+        memory_reply = self._handle_long_term_memory(command, normalized)
+        if memory_reply is not None:
+            return memory_reply
         project_reply = self._handle_project_companion(command, normalized)
         if project_reply is not None:
             return project_reply
@@ -170,10 +173,59 @@ class Assistant:
 
         if self._conversational_ai is not None:
             try:
+                project_context = getattr(self._memory, "project_context", lambda: "")()
+                contextual_reply = getattr(self._conversational_ai, "reply_with_context", None)
+                if contextual_reply is not None and project_context:
+                    return Reply(contextual_reply(command, project_context))
                 return Reply(self._conversational_ai.reply(command))
             except RuntimeError as error:
                 return Reply(str(error))
         return Reply("Todavía no conozco esa orden.")
+
+    def _handle_long_term_memory(self, command: str, normalized: str) -> Reply | None:
+        set_project = getattr(self._memory, "set_active_project", None)
+        remember = getattr(self._memory, "remember_project", None)
+        context = getattr(self._memory, "project_context", None)
+        if set_project is None or remember is None or context is None:
+            return None
+
+        project_match = re.search(
+            r"(?:estoy trabajando en|mi proyecto (?:es|se llama)|trabajemos en|abre el proyecto)\s+(.+)",
+            normalized,
+        )
+        if project_match:
+            project = project_match.group(1).strip(" .")
+            set_project(project)
+            return Reply(f"Entendido. {project} es ahora el proyecto activo y recordaré aquí sus decisiones y pendientes.")
+
+        recall_cues = (
+            "continua con lo de ayer", "continuemos con lo de ayer", "que recuerdas del proyecto",
+            "resume el proyecto", "que queda pendiente", "memoria del proyecto",
+        )
+        if normalized in recall_cues:
+            saved = context()
+            if not saved:
+                return Reply("Todavía no has indicado qué proyecto estamos trabajando.")
+            summarizer = getattr(self._conversational_ai, "reply_with_context", None)
+            if summarizer is not None:
+                try:
+                    return Reply(summarizer("Resume brevemente dónde lo dejamos y cuál sería el siguiente paso.", saved))
+                except RuntimeError:
+                    pass
+            return Reply(saved.replace("\n", ". "))
+
+        patterns = (
+            (r"(?:recuerda que|apunta que|anota que)\s+(.+)", "note", "Lo recordaré"),
+            (r"(?:hemos decidido|decidimos que|la decision es)\s+(.+)", "decision", "He guardado esa decisión"),
+            (r"(?:prefiero que|mi preferencia es)\s+(.+)", "preference", "He guardado esa preferencia"),
+            (r"(?:queda pendiente|tenemos pendiente|falta por hacer)\s+(.+)", "pending", "He guardado ese pendiente"),
+        )
+        for pattern, category, confirmation in patterns:
+            match = re.search(pattern, normalized)
+            if match:
+                remember(category, match.group(1).strip(" ."))
+                return Reply(f"{confirmation} en la memoria del proyecto.")
+        return None
 
     def _handle_project_companion(self, command: str, normalized: str) -> Reply | None:
         if self._project_companion is None:
