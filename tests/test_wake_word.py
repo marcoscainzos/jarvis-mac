@@ -11,6 +11,8 @@ def test_extracts_command_after_jarvis() -> None:
 
 def test_accepts_common_whisper_variant() -> None:
     assert command_after_wake_word("Allervis pon musica") == "pon musica"
+    assert command_after_wake_word("Jarbis abre Safari") == "abre safari"
+    assert command_after_wake_word("Jardis dime la hora") == "dime la hora"
 
 
 def test_ignores_other_sounds_and_speech() -> None:

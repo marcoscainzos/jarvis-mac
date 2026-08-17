@@ -15,10 +15,34 @@ def command_after_wake_word(transcript: str) -> str | None:
     normalized = "".join(char for char in normalized if not unicodedata.combining(char))
     # Whisper puede escribir el nombre foneticamente de varias formas en espanol.
     match = re.search(
-        r"\b(?:jarvis|yarvis|harvis|charvis|llervis|allervis)\b[\s,.:;!?-]*(.*)",
+        r"\b(?:jarvis|yarvis|harvis|charvis|llervis|allervis|jervis|jarbis|jarviz|arvis)\b[\s,.:;!?-]*(.*)",
         normalized,
     )
-    return match.group(1).strip() if match else None
+    if match:
+        return match.group(1).strip()
+
+    # Tolera hasta dos letras distintas en una palabra de longitud parecida.
+    words = list(re.finditer(r"\b[a-z]{4,7}\b", normalized))
+    for word in words:
+        if _edit_distance(word.group(), "jarvis") <= 2:
+            return normalized[word.end():].lstrip(" ,.:;!?-")
+    return None
+
+
+def _edit_distance(left: str, right: str) -> int:
+    previous = list(range(len(right) + 1))
+    for index, left_char in enumerate(left, start=1):
+        current = [index]
+        for other_index, right_char in enumerate(right, start=1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[other_index] + 1,
+                    previous[other_index - 1] + (left_char != right_char),
+                )
+            )
+        previous = current
+    return previous[-1]
 
 
 def contains_sleep_word(transcript: str) -> bool:
@@ -83,6 +107,7 @@ class WakeWordDetector:
                 transcript = self.listener.listen(
                     wait_timeout=1.0,
                     notify_recorded=False,
+                    wake_mode=True,
                 )
             except (NoSpeechTimeout, UnrecognizedSpeech, SpeechError):
                 continue

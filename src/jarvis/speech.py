@@ -42,11 +42,14 @@ class LocalWhisperListener:
         self,
         wait_timeout: float | None = None,
         notify_recorded: bool = True,
+        wake_mode: bool = False,
     ) -> str:
         np, sd, whisper_model = self._load_dependencies()
 
         try:
-            recording = self._record_until_silence(np, sd, wait_timeout)
+            recording = self._record_until_silence(
+                np, sd, wait_timeout, wake_mode=wake_mode
+            )
         except NoSpeechTimeout:
             raise
         except Exception as error:
@@ -108,14 +111,19 @@ class LocalWhisperListener:
                 )
 
     def _record_until_silence(
-        self, np: Any, sd: Any, wait_timeout: float | None = None
+        self,
+        np: Any,
+        sd: Any,
+        wait_timeout: float | None = None,
+        wake_mode: bool = False,
     ) -> Any:
         """Termina poco después de que el usuario deja de hablar."""
         block_seconds = 0.05
         block_frames = int(self.sample_rate * block_seconds)
-        max_speech_blocks = max(1, int(self.duration / block_seconds))
-        silence_blocks_needed = int(0.80 / block_seconds)
-        minimum_voiced_blocks = int(0.50 / block_seconds)
+        maximum_duration = 2.5 if wake_mode else self.duration
+        max_speech_blocks = max(1, int(maximum_duration / block_seconds))
+        silence_blocks_needed = int((0.35 if wake_mode else 0.80) / block_seconds)
+        minimum_voiced_blocks = int((0.15 if wake_mode else 0.50) / block_seconds)
         noise_floor = 30.0
         speech_started = False
         silent_blocks = 0
