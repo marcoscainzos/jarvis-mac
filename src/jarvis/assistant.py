@@ -41,6 +41,8 @@ class Assistant:
         self._task_engine = task_engine
         self._project_companion = project_companion
         self._pending_plan: dict[str, str] | None = None
+        self._pending_memory: tuple[str, str] | None = None
+        self._memory_enabled = True
 
     def handle(self, command: str) -> Reply:
         normalized = self._normalize(command)
@@ -51,7 +53,19 @@ class Assistant:
             word in normalized.split()
             for word in ("duerme", "duermete", "durme", "durmete")
         ):
-            return Reply("Entendido. Quedo a la espera de las palmadas.", should_exit=True)
+            return Reply("Entendido. Quedo a la espera.", should_exit=True)
+        if self._pending_memory is not None:
+            if normalized in {"si", "sí", "guardalo", "guárdalo", "recuerdalo", "recuérdalo"}:
+                category, content = self._pending_memory
+                self._pending_memory = None
+                remember = getattr(self._memory, "remember_project", None)
+                if remember is not None and self._memory_enabled:
+                    remember(category, content)
+                    return Reply("Hecho. Lo he guardado en la memoria del proyecto.")
+                return Reply("La memoria está en privado; no he guardado nada.")
+            if normalized in {"no", "cancela", "no lo guardes", "olvidalo", "olvídalo"}:
+                self._pending_memory = None
+                return Reply("Entendido. No lo guardaré.")
         if self._pending_plan is not None:
             if normalized in {"si", "sí", "confirma", "si confirma", "adelante", "hazlo"}:
                 plan = self._pending_plan
@@ -182,6 +196,20 @@ class Assistant:
         return Reply("Todavía no conozco esa orden.")
 
     def _handle_long_term_memory(self, command: str, normalized: str) -> Reply | None:
+        if normalized in {
+            "no guardes esta conversacion", "modo privado", "activa el modo privado",
+            "no recuerdes lo que diga",
+        }:
+            self._memory_enabled = False
+            self._pending_memory = None
+            return Reply("Modo privado activado. No guardaré nada de esta conversación.")
+        if normalized in {
+            "vuelve a guardar", "desactiva el modo privado", "puedes volver a recordar",
+            "reanuda la memoria",
+        }:
+            self._memory_enabled = True
+            return Reply("Memoria reactivada. Volveré a pedir permiso antes de guardar algo nuevo.")
+
         set_project = getattr(self._memory, "set_active_project", None)
         remember = getattr(self._memory, "remember_project", None)
         context = getattr(self._memory, "project_context", None)
@@ -196,6 +224,48 @@ class Assistant:
             project = project_match.group(1).strip(" .")
             set_project(project)
             return Reply(f"Entendido. {project} es ahora el proyecto activo y recordaré aquí sus decisiones y pendientes.")
+
+        if normalized in {"que recuerdas de mi", "que sabes de mi", "que tienes guardado de mi"}:
+            name = self._memory.get("user_name")
+            saved = context()
+            parts = [f"Sé que te llamas {name}." if name else "No tengo guardado tu nombre."]
+            if saved:
+                parts.append(saved.replace("\n", ". "))
+            return Reply(" ".join(parts))
+
+        forget_latest = getattr(self._memory, "forget_latest_project_memory", None)
+        if forget_latest is not None and normalized in {
+            "olvida eso", "olvida lo ultimo", "borra el ultimo recuerdo",
+            "olvida esa decision", "olvida esa preferencia", "olvida ese pendiente",
+        }:
+            category = (
+                "decision" if "decision" in normalized else
+                "preference" if "preferencia" in normalized else
+                "pending" if "pendiente" in normalized else ""
+            )
+            return Reply(
+                "He eliminado ese recuerdo." if forget_latest(category)
+                else "No encuentro un recuerdo de ese tipo para eliminar."
+            )
+
+        move_latest = getattr(self._memory, "move_latest_project_memory", None)
+        move_match = re.search(r"(?:eso pertenece|mueve eso|asocia eso) al proyecto\s+(.+)", normalized)
+        if move_latest is not None and move_match:
+            project = move_match.group(1).strip(" .")
+            return Reply(
+                f"He asociado el último recuerdo al proyecto {project}."
+                if move_latest(project) else "No hay ningún recuerdo reciente que pueda mover."
+            )
+
+        complete = getattr(self._memory, "complete_latest_pending", None)
+        if complete is not None and normalized in {
+            "marca esa tarea como terminada", "marca ese pendiente como terminado",
+            "eso ya esta hecho", "he terminado esa tarea",
+        }:
+            return Reply(
+                "He marcado el último pendiente como terminado."
+                if complete() else "No encuentro ninguna tarea pendiente en este proyecto."
+            )
 
         recall_cues = (
             "continua con lo de ayer", "continuemos con lo de ayer", "que recuerdas del proyecto",
@@ -222,8 +292,25 @@ class Assistant:
         for pattern, category, confirmation in patterns:
             match = re.search(pattern, normalized)
             if match:
+                if not self._memory_enabled:
+                    return Reply("No lo guardaré porque esta conversación está en modo privado.")
                 remember(category, match.group(1).strip(" ."))
                 return Reply(f"{confirmation} en la memoria del proyecto.")
+
+        if not self._memory_enabled:
+            return None
+        automatic_patterns = (
+            (r"(?:vamos a usar|al final usaremos|me quedo con)\s+(.+)", "decision", "una decisión"),
+            (r"(?:me gusta que|no me gusta que)\s+(.+)", "preference", "una preferencia"),
+            (r"(?:tengo que|tenemos que|nos queda|hay que)\s+(.+)", "pending", "una tarea pendiente"),
+        )
+        for pattern, category, label in automatic_patterns:
+            match = re.search(pattern, normalized)
+            if match:
+                content = match.group(1).strip(" .")
+                if len(content) >= 4:
+                    self._pending_memory = (category, content)
+                    return Reply(f"Eso parece {label}. ¿Quieres que lo recuerde en el proyecto actual?")
         return None
 
     def _handle_project_companion(self, command: str, normalized: str) -> Reply | None:

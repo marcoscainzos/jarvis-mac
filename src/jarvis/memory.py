@@ -90,12 +90,59 @@ class SQLiteMemory:
             ).fetchall()
         if not rows:
             return f"Proyecto activo: {selected}. Todavía no hay detalles guardados."
-        labels = {"decision": "Decisión", "preference": "Preferencia", "pending": "Pendiente", "note": "Nota"}
+        labels = {"decision": "Decisión", "preference": "Preferencia", "pending": "Pendiente", "completed": "Completado", "note": "Nota"}
         details = "\n".join(
             f"- {labels.get(category, category)}: {content} ({created_at[:10]})"
             for category, content, created_at in reversed(rows)
         )
         return f"Proyecto activo: {selected}\n{details}"
+
+    def forget_latest_project_memory(self, category: str = "") -> bool:
+        selected = self.active_project() or "General"
+        with self._connect() as connection:
+            if category:
+                row = connection.execute(
+                    "SELECT id FROM project_memory WHERE project = ? AND category = ? "
+                    "ORDER BY id DESC LIMIT 1", (selected, category)
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT id FROM project_memory WHERE project = ? ORDER BY id DESC LIMIT 1",
+                    (selected,),
+                ).fetchone()
+            if row is None:
+                return False
+            connection.execute("DELETE FROM project_memory WHERE id = ?", (row[0],))
+        return True
+
+    def move_latest_project_memory(self, project: str) -> bool:
+        selected = self.active_project() or "General"
+        clean_project = " ".join(project.split())[:120]
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM project_memory WHERE project = ? ORDER BY id DESC LIMIT 1",
+                (selected,),
+            ).fetchone()
+            if row is None:
+                return False
+            connection.execute(
+                "UPDATE project_memory SET project = ? WHERE id = ?", (clean_project, row[0])
+            )
+        return True
+
+    def complete_latest_pending(self) -> bool:
+        selected = self.active_project() or "General"
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM project_memory WHERE project = ? AND category = 'pending' "
+                "ORDER BY id DESC LIMIT 1", (selected,)
+            ).fetchone()
+            if row is None:
+                return False
+            connection.execute(
+                "UPDATE project_memory SET category = 'completed' WHERE id = ?", (row[0],)
+            )
+        return True
 
 
 class VolatileMemory:
