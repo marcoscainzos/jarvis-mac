@@ -99,28 +99,9 @@ class LocalWhisperListener:
             audio_file.writeframes(recording.tobytes())
 
         try:
-            self._ensure_model(whisper_model)
-            transcription_options: dict[str, Any] = {
-                "language": self.language,
-                "vad_filter": not wake_mode,
-                "beam_size": 1,
-                "best_of": 1,
-                "condition_on_previous_text": False,
-            }
-            if wake_mode:
-                # Una sola palabra puede ser eliminada por VAD; este contexto
-                # ayuda a Whisper a conservar y escribir correctamente Iris.
-                transcription_options["initial_prompt"] = keyword_hint
-            else:
-                transcription_options["vad_parameters"] = {
-                    "min_silence_duration_ms": 300
-                }
-            segments, _ = self._model.transcribe(
-                str(audio_path), **transcription_options
+            transcript = self._transcribe_path(
+                audio_path, whisper_model, wake_mode, keyword_hint
             )
-            transcript = " ".join(
-                segment.text.strip() for segment in segments
-            ).strip()
         except Exception as error:
             raise SpeechError(
                 "No se pudo cargar o ejecutar el modelo de voz. "
@@ -131,6 +112,44 @@ class LocalWhisperListener:
         if not transcript:
             raise UnrecognizedSpeech("No he entendido esa frase. Sigo escuchando.")
         return transcript
+
+    def transcribe_file(
+        self,
+        path: Path,
+        wake_mode: bool = False,
+        keyword_hint: str = "Iris",
+    ) -> str:
+        """Transcribe una muestra existente para pruebas sin abrir el micrófono."""
+        _np, _sd, whisper_model = self._load_dependencies()
+        try:
+            transcript = self._transcribe_path(
+                path, whisper_model, wake_mode, keyword_hint
+            )
+        except Exception as error:
+            raise SpeechError(f"No se pudo transcribir la muestra {path.name}.") from error
+        if not transcript:
+            raise UnrecognizedSpeech("La muestra no contiene voz reconocible.")
+        return transcript
+
+    def _transcribe_path(
+        self, path: Path, whisper_model: Any, wake_mode: bool, keyword_hint: str
+    ) -> str:
+        self._ensure_model(whisper_model)
+        transcription_options: dict[str, Any] = {
+            "language": self.language,
+            "vad_filter": not wake_mode,
+            "beam_size": 1,
+            "best_of": 1,
+            "condition_on_previous_text": False,
+        }
+        if wake_mode:
+            transcription_options["initial_prompt"] = keyword_hint
+        else:
+            transcription_options["vad_parameters"] = {
+                "min_silence_duration_ms": 300
+            }
+        segments, _ = self._model.transcribe(str(path), **transcription_options)
+        return " ".join(segment.text.strip() for segment in segments).strip()
 
     def _ensure_model(self, whisper_model: Any) -> None:
         if self._model is not None:
