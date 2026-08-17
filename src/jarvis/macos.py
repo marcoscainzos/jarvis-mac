@@ -200,6 +200,17 @@ end run
 """
         return self._osascript(script, str(path))
 
+    def trash_path(self, path: Path) -> bool:
+        """Deshace una creación previa solo dentro de carpetas gestionadas."""
+        if not self._is_managed_path(path) or not path.exists():
+            return False
+        script = """
+on run argv
+    tell application "Finder" to delete POSIX file (item 1 of argv)
+end run
+"""
+        return self._osascript(script, str(path.resolve()))
+
     @staticmethod
     def _safe_root(location: str) -> Path | None:
         roots = {

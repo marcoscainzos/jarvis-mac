@@ -30,6 +30,12 @@ class FakeTools:
         path.write_text(content, encoding="utf-8")
         return path
 
+    def trash_path(self, path: Path) -> bool:
+        if not path.exists() or self.root.resolve() not in path.resolve().parents:
+            return False
+        path.unlink()
+        return True
+
 
 def test_task_engine_creates_and_verifies_report() -> None:
     with TemporaryDirectory() as directory:
@@ -44,3 +50,8 @@ def test_task_engine_creates_and_verifies_report() -> None:
         assert snapshot.state == "done"
         assert Path(snapshot.output).exists()
         assert "Comparación final" in Path(snapshot.output).read_text(encoding="utf-8")
+        assert engine.history()[0].action == "create_file"
+        assert engine.undo_last()
+        assert not Path(snapshot.output).exists()
+        assert engine.status().state == "undone"
+        assert not engine.undo_last()

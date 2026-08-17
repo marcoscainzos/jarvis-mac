@@ -385,6 +385,9 @@ class Assistant:
             if self._task_engine.cancel():
                 return Reply("He cancelado la tarea. No ejecutaré los pasos pendientes.")
             return Reply("No hay ninguna tarea activa que cancelar.")
+        if normalized in {"deshaz la ultima tarea", "deshacer la ultima tarea", "revierte la ultima tarea"}:
+            self._pending_plan = {"action": "undo_task"}
+            return Reply("Voy a enviar a la Papelera el archivo creado por la última tarea. Di confirma para continuar o cancela.")
         if normalized in {"como va la tarea", "estado de la tarea", "que estas haciendo"}:
             task = self._task_engine.status()
             if task.state == "idle":
@@ -393,6 +396,8 @@ class Assistant:
                 return Reply(f"La tarea terminó y verifiqué el resultado en {task.output}.")
             if task.state == "error":
                 return Reply(f"La tarea se detuvo en {task.step}: {task.error}.")
+            if task.state == "undone":
+                return Reply("La última tarea se deshizo y su resultado está en la Papelera.")
             return Reply(f"Estoy con {task.goal}; ahora mismo: {task.step}.")
         wants_report = any(cue in normalized for cue in ("crea un informe", "crea un documento", "haz un informe", "guarda un informe"))
         wants_research = any(cue in normalized for cue in ("investiga", "compara", "averigua"))
@@ -596,6 +601,10 @@ class Assistant:
         return None
 
     def _execute_sensitive_plan(self, plan: dict[str, str]) -> Reply:
+        if plan.get("action") == "undo_task":
+            if self._task_engine is not None and self._task_engine.undo_last():
+                return Reply("He deshecho la última tarea. El archivo está en la Papelera y puede recuperarse.")
+            return Reply("No encuentro una tarea reversible o su resultado ya no existe.")
         if self._computer_tools is None:
             return Reply("La herramienta ya no está disponible.")
         action = plan.get("action", "none")

@@ -21,6 +21,15 @@ class TaskSnapshot:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class TaskAction:
+    action: str
+    path: str
+    goal: str
+    created_at: str
+    undone: bool = False
+
+
 class TaskEngine:
     """Ejecuta objetivos largos con estado verificable y cancelación segura."""
 
@@ -34,11 +43,33 @@ class TaskEngine:
         self.researcher = researcher
         self.tools = tools
         self.storage_path = storage_path
+        self.journal_path = storage_path.with_name("task-journal.json")
         self.on_update = on_update
         self._lock = threading.Lock()
         self._cancel = threading.Event()
         self._snapshot = TaskSnapshot("idle", "", "Sin tareas")
         self._load()
+
+    def history(self) -> tuple[TaskAction, ...]:
+        try:
+            data = json.loads(self.journal_path.read_text(encoding="utf-8"))
+            return tuple(TaskAction(**item) for item in data)
+        except (OSError, ValueError, TypeError):
+            return ()
+
+    def undo_last(self) -> bool:
+        actions = list(self.history())
+        candidate = next((item for item in reversed(actions) if not item.undone), None)
+        if candidate is None or candidate.action != "create_file":
+            return False
+        path = Path(candidate.path)
+        if not self.tools.trash_path(path):
+            return False
+        index = actions.index(candidate)
+        actions[index] = TaskAction(**{**asdict(candidate), "undone": True})
+        self._save_history(actions)
+        self._set(TaskSnapshot("undone", candidate.goal, "Resultado enviado a la Papelera"))
+        return True
 
     def start_research_report(
         self, query: str, location: str = "desktop"
@@ -98,7 +129,26 @@ class TaskEngine:
         if path is None or not path.exists() or path.stat().st_size < 20:
             self._set(TaskSnapshot("error", query, "No se guardó el informe", error="No pude verificar el archivo de salida"))
             return
+        self._record_action(TaskAction(
+            "create_file", str(path.resolve()), query,
+            time.strftime("%Y-%m-%dT%H:%M:%S"),
+        ))
         self._set(TaskSnapshot("done", query, "Tarea terminada", output=str(path)))
+
+    def _record_action(self, action: TaskAction) -> None:
+        actions = list(self.history())
+        actions.append(action)
+        self._save_history(actions[-50:])
+
+    def _save_history(self, actions: list[TaskAction]) -> None:
+        try:
+            self.journal_path.parent.mkdir(parents=True, exist_ok=True)
+            self.journal_path.write_text(
+                json.dumps([asdict(item) for item in actions], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
 
     def _set(self, snapshot: TaskSnapshot) -> None:
         with self._lock:

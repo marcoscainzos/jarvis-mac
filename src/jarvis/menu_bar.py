@@ -193,7 +193,7 @@ def main() -> None:
             self.stop_project_item.title = "Pausar contexto visual"
 
         def _task_update(self, task: TaskSnapshot) -> None:
-            labels = {"running": "en curso", "done": "terminada", "error": "con error", "cancelled": "cancelada", "idle": "ninguna"}
+            labels = {"running": "en curso", "done": "terminada", "error": "con error", "cancelled": "cancelada", "undone": "deshecha", "idle": "ninguna"}
             self.task_item.title = f"Tarea: {labels.get(task.state, task.state)} — {task.step[:55]}"
             if task.state == "done":
                 rumps.notification("Iris", "Tarea terminada", f"Informe verificado: {task.output}")
